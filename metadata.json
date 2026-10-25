@@ -13,7 +13,7 @@
           "name": "author",
           "type": "string",
           "required": false,
-          "description": "发帖账号：user（用户本人）或 ai（AI 自己）。AI 代发时必须显式传 ai，否则会落到用户账号上。默认 user"
+          "description": "账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "text",
@@ -79,7 +79,7 @@
           "name": "author",
           "type": "string",
           "required": false,
-          "description": "评论者：user 或 ai。AI 代评时必须显式传 ai，否则会落到用户账号。默认 user"
+          "description": "账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -91,7 +91,7 @@
           "name": "author",
           "type": "string",
           "required": false,
-          "description": "user/ai，省略查全部"
+          "description": "账号过滤：user 或 ai；**省略该参数则返回全部账号的帖子**。也接受 actor 作为参数名。"
         },
         {
           "name": "limit",
@@ -127,7 +127,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "user/ai"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -145,7 +145,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "actor"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -163,7 +163,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "actor"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -235,7 +235,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "user 或 ai，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -247,7 +247,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "发起方 user/ai，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "peer",
@@ -271,7 +271,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "发送方 user/ai，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "peer",
@@ -307,7 +307,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "user 或 ai，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "peer",
@@ -367,7 +367,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "user 或 ai，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "limit",
@@ -385,7 +385,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "user 或 ai，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -485,7 +485,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "发起方，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -641,7 +641,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "接收方，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "dedupe",
@@ -677,7 +677,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "本方账号，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "chatId",
@@ -707,7 +707,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "接收方，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         }
       ]
     },
@@ -719,7 +719,7 @@
           "name": "actor",
           "type": "string",
           "required": false,
-          "description": "发起方 user/ai，默认 user"
+          "description": "操作账号：user（用户本人）或 ai（AI 自己）。AI 代操作时必须显式传 ai，否则会落到用户账号。也接受 actor 作为参数名。默认 user"
         },
         {
           "name": "peer",
