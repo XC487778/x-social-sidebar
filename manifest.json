@@ -4,9 +4,7 @@
   "version": "0.2.1",
   "api_version": "1.0.1",
   "requires": [],
-  "author": [
-    "Operit Community"
-  ],
+  "author": ["阿辰＆霁川"],
   "main": "main.js",
   "display_name": {
     "zh": "X Social Sidebar",
