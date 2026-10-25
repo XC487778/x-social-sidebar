@@ -1,0 +1,4683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>X</title>
+<style>
+  :root {
+    --x-blue: #1d9bf0;
+    --success-green: #00ba7c;
+    --like-pink: #f91880;
+    --bg: #ffffff;
+    --surface: #f7f9f9;
+    --hover: #eff3f4;
+    --border: #eff3f4;
+    --text-primary: #0f1419;
+    --text-secondary: #536471;
+    --text-tertiary: #829aab;
+    --nav-h: 54px;
+    --tab-h: 54px;
+    --font-main: "TwitterChirp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  [data-theme="dark"] {
+    --bg: #000000;
+    --surface: #16181c;
+    --hover: #1d1f23;
+    --border: #2f3336;
+    --text-primary: #e7e9ea;
+    --text-secondary: #71767b;
+    --text-tertiary: #536471;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    font-size: 15px;
+    line-height: 1.35;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, textarea { font-family: inherit; }
+  svg { display: block; flex-shrink: 0; }
+  a { color: var(--x-blue); text-decoration: none; }
+
+  /* ================= 布局 ================= */
+  #app { position: relative; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .topbar {
+    height: var(--nav-h);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    /* 【性能】原来用 backdrop-filter: blur(12px) 做毛玻璃。
+       在 Android WebView 里，backdrop-filter 会强制整块区域走 GPU 离屏渲染，
+       每滚动一帧都要重算模糊 —— 聊天界面长列表滚动时非常吃 CPU。
+       改成不透明背景（视觉差异极小），滚动明显更顺。 */
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 20;
+  }
+  .topbar .avatar { width: 34px; height: 34px; font-size: 13px; }
+  .topbar h1 { font-size: 19px; font-weight: 800; flex: 1; }
+  .topbar .spacer { flex: 1; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 9999px;
+    display: grid; place-items: center; transition: background .15s;
+  }
+  .icon-btn:hover, .icon-btn:active { background: var(--hover); }
+  .icon-btn svg { width: 21px; height: 21px; fill: var(--text-primary); }
+  .back-btn { margin-left: -6px; }
+
+  .scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  .scroll-area::-webkit-scrollbar { width: 0; }
+
+  /* 底部 Tab */
+  .tabbar {
+    height: var(--tab-h);
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    position: relative;
+    color: var(--text-secondary);
+    transition: color .15s;
+  }
+  .tab svg { width: 24px; height: 24px; fill: currentColor; }
+  .tab .tab-label { font-size: 10px; font-weight: 500; }
+  .tab.active { color: var(--text-primary); }
+  .tab.active svg { fill: var(--text-primary); }
+  .tab .badge {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    margin-left: 6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 9999px;
+    background: var(--x-blue);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .tab .badge.show { display: flex; }
+
+  /* ================= 通用 ================= */
+  .avatar {
+    width: 44px; height: 44px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    display: grid; place-items: center;
+    color: #fff; font-weight: 700; font-size: 16px;
+    user-select: none; overflow: hidden;
+  }
+  .avatar.sm { width: 36px; height: 36px; font-size: 13px; }
+  .avatar.lg { width: 76px; height: 76px; font-size: 26px; border: 3px solid var(--bg); }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+  .verified { width: 17px; height: 17px; fill: var(--x-blue); flex-shrink: 0; }
+
+  /* ================= 发帖框 ================= */
+  .composer {
+    display: flex; gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .composer-body { flex: 1; min-width: 0; }
+  .composer textarea {
+    width: 100%;
+    min-height: 46px;
+    max-height: 180px;
+    resize: none;
+    border: none; outline: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 18px;
+    line-height: 1.4;
+    padding: 6px 0;
+  }
+  .composer textarea::placeholder { color: var(--text-secondary); }
+  .composer-actions {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 8px; border-top: 1px solid var(--border); margin-top: 4px;
+  }
+  .composer-tools { display: flex; gap: 2px; }
+  .tool-btn {
+    width: 34px; height: 34px; border-radius: 9999px;
+    display: grid; place-items: center; transition: background .15s;
+  }
+  .tool-btn:active { background: color-mix(in srgb, var(--x-blue) 14%, transparent); }
+  .tool-btn svg { width: 20px; height: 20px; fill: var(--x-blue); }
+  .send-btn {
+    padding: 0 18px; height: 34px; border-radius: 9999px;
+    background: var(--x-blue); color: #fff;
+    font-weight: 700; font-size: 14px;
+    transition: opacity .15s, transform .1s;
+  }
+  .send-btn:active { transform: scale(.96); }
+  .send-btn:disabled { opacity: .45; }
+
+  /* 媒体预览 */
+  #mediaPreview {
+    display: none; gap: 8px; flex-wrap: wrap; padding: 8px 0 0;
+  }
+  .media-chip { position: relative; }
+  .media-chip img, .media-chip video {
+    width: 74px; height: 74px; object-fit: cover;
+    border-radius: 12px; display: block; background: #000;
+  }
+  .media-chip .rm {
+    position: absolute; top: -5px; right: -5px;
+    width: 20px; height: 20px; border-radius: 9999px;
+    background: rgba(15,20,25,.92); color: #fff;
+    font-size: 13px; line-height: 18px; text-align: center;
+    display: grid; place-items: center;
+  }
+
+  /* ================= 帖子 ================= */
+  .post {
+    display: flex; gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background .15s;
+    animation: fadeIn .2s ease;
+  }
+  .post:active { background: color-mix(in srgb, var(--hover) 70%, transparent); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .post-body { flex: 1; min-width: 0; }
+  .post-header {
+    display: flex; align-items: center; gap: 4px;
+    flex-wrap: wrap; font-size: 15px; line-height: 1.3;
+  }
+  .post-name {
+    font-weight: 700; color: var(--text-primary);
+    cursor: pointer;
+  }
+  .post-name:active { text-decoration: underline; }
+  .post-handle, .post-time, .post-dot { color: var(--text-secondary); font-weight: 400; font-size: 15px; }
+  .post-text {
+    font-size: 15px; line-height: 1.4; margin-top: 2px;
+    white-space: pre-wrap; word-break: break-word;
+    cursor: pointer;
+  }
+  .post-actions {
+    display: flex; justify-content: space-between;
+    margin-top: 10px; max-width: 400px;
+  }
+  .action-btn {
+    display: flex; align-items: center; gap: 5px;
+    color: var(--text-secondary); font-size: 13px;
+    padding: 3px 7px; border-radius: 9999px;
+    transition: background .15s, color .15s;
+  }
+  .action-btn svg { width: 17px; height: 17px; fill: currentColor; }
+  .action-btn:active { background: color-mix(in srgb, var(--x-blue) 12%, transparent); }
+  .action-btn.reply:active { color: var(--x-blue); }
+  .action-btn.repost:active { color: var(--success-green); }
+  .action-btn.like:active { color: var(--like-pink); }
+  .action-btn.liked { color: var(--like-pink); }
+  .action-btn.reposted { color: var(--success-green); }
+  .action-btn.bookmarked { color: var(--x-blue); }
+  .action-btn.liked svg { animation: heartPop .35s ease; }
+  @keyframes heartPop { 0%{transform:scale(1)} 40%{transform:scale(1.35)} 70%{transform:scale(.9)} 100%{transform:scale(1)} }
+
+  /* ---------------- 评论 ---------------- */
+  .comments-box {
+    margin-top: 10px; max-width: 400px;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+  }
+  .comment-item {
+    display: flex; gap: 8px; padding: 6px 0;
+  }
+  .comment-item .avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .comment-item .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .comment-main { flex: 1; min-width: 0; }
+  .comment-head {
+    display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
+  }
+  .comment-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .comment-handle { font-size: 12px; color: var(--text-secondary); }
+  .comment-time { font-size: 12px; color: var(--text-tertiary); }
+  .comment-text {
+    font-size: 14px; line-height: 1.4; color: var(--text-primary);
+    white-space: pre-wrap; word-break: break-word; margin-top: 2px;
+  }
+  .comment-form {
+    display: flex; gap: 8px; align-items: flex-start; margin-top: 8px;
+  }
+  .comment-form .avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .comment-form .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .comment-input-wrap {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 9999px;
+    padding: 5px 6px 5px 12px;
+  }
+  .comment-input {
+    flex: 1; border: none; outline: none; background: transparent;
+    color: var(--text-primary); font-size: 14px; line-height: 1.4;
+    min-width: 0; resize: none; font-family: inherit;
+    max-height: 100px;
+  }
+  .comment-input::placeholder { color: var(--text-tertiary); }
+  .comment-send {
+    border: none; border-radius: 9999px; background: var(--x-blue);
+    color: #fff; font-size: 13px; font-weight: 700;
+    padding: 5px 13px; cursor: pointer;
+  }
+  .comment-send:disabled { opacity: .45; cursor: default; }
+  .comments-empty {
+    font-size: 13px; color: var(--text-tertiary); padding: 6px 0 2px;
+  }
+
+  .comment-toggle {
+    font-size: 13px; color: var(--text-secondary); cursor: pointer;
+    margin-top: 8px; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .comment-toggle:active { color: var(--x-blue); }
+
+  /* 媒体网格 */
+  .post-media { margin-top: 8px; display: grid; gap: 2px; border-radius: 14px; overflow: hidden; }
+  .post-media.one { grid-template-columns: 1fr; }
+  .post-media.two { grid-template-columns: 1fr 1fr; }
+  /* 3 张：首图占左列并跨两行，右列上下各一张（还原 X 原生版式） */
+  .post-media.three { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+  .post-media.three > :first-child { grid-row: 1 / span 2; }
+  /* 4 张：2×2 */
+  .post-media.four { grid-template-columns: 1fr 1fr; }
+  /* 5 张及以上：3 列自适应 */
+  .post-media.many { grid-template-columns: repeat(3, 1fr); }
+  /* 超多图（>9）：仍然 3 列，全部渲染，不截断 */
+  .post-media.many .mi { aspect-ratio: 1/1; }
+  .post-media .mi {
+    width: 100%; aspect-ratio: 16/10; object-fit: cover;
+    display: block; background: var(--surface); cursor: pointer;
+  }
+  .post-media.two .mi { aspect-ratio: 1/1; }
+  .post-media.three .mi { aspect-ratio: 1/1; }
+  .post-media.four .mi { aspect-ratio: 1/1; }
+  .media-video-wrap { position: relative; overflow: hidden; }
+  /* 【修复·视频封面】没有 poster 时用渐变占位，避免整块纯黑 */
+  .media-video-wrap .video-fallback {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(135deg, #2b3648 0%, #1a2130 60%, #121821 100%);
+  }
+  .media-video-wrap .play-badge {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    pointer-events: none;
+  }
+  .media-video-wrap .play-badge svg { width: 44px; height: 44px; fill: rgba(255,255,255,.92); filter: drop-shadow(0 1px 6px rgba(0,0,0,.5)); }
+
+  /* 转发条 */
+  .repost-mark {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--text-secondary); font-size: 13px; font-weight: 700;
+    padding: 0 0 4px 0; margin-left: 26px;
+  }
+  .repost-mark svg { width: 15px; height: 15px; fill: currentColor; }
+
+  /* ================= 通知 ================= */
+  .ntf-row {
+    display: flex; gap: 10px; padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+  .ntf-icon { width: 30px; display: grid; place-items: center; padding-top: 10px; }
+  .ntf-icon svg { width: 22px; height: 22px; }
+  .ntf-main { flex: 1; min-width: 0; }
+  .ntf-line { font-size: 15px; line-height: 1.35; }
+  .ntf-line b { font-weight: 700; }
+  .ntf-time { color: var(--text-secondary); font-size: 13px; margin-top: 3px; }
+  /* 操作者头像（参考图：左侧圆头像 + 右侧文字） */
+  .ntf-avatar {
+    width: 40px; height: 40px; border-radius: 9999px;
+    display: grid; place-items: center; overflow: hidden;
+    color: #fff; font-weight: 700; font-size: 15px; flex: none;
+  }
+  .ntf-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  /* 顶部分段 Tab：All / Mentions / Verified */
+  .ntf-tabs {
+    display: flex; gap: 4px; padding: 8px 12px 0;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
+  }
+  .ntf-tab {
+    flex: 1; border: none; background: transparent; cursor: pointer;
+    padding: 12px 8px 10px; font-size: 17px; color: var(--text-secondary);
+    font-weight: 700; border-bottom: 3px solid transparent;
+  }
+  .ntf-tab.active { color: var(--text-primary); border-bottom-color: var(--x-blue); }
+  /* 多人聚合头像（参考图：xiaojiang 及另外 3 人关注了你） */
+  .ntf-avatars { display: flex; align-items: center; }
+  .ntf-avatars .ntf-avatar { width: 32px; height: 32px; font-size: 13px; }
+  .ntf-avatars .ntf-avatar + .ntf-avatar { margin-left: -10px; }
+  .ntf-more {
+    width: 32px; height: 32px; border-radius: 9999px; margin-left: -10px;
+    background: var(--bg-secondary); color: var(--text-secondary);
+    display: grid; place-items: center; font-size: 12px; font-weight: 700;
+    border: 2px solid var(--bg);
+  }
+
+  /* ================= 私信 ================= */
+  /* 【原版 X 风格】Chat 列表：大标题 + 圆角搜索框 + 大圆形头像会话行 */
+  .pill-filter {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 32px; padding: 0 12px 0 14px; border-radius: 9999px;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-primary); font-size: 15px; font-weight: 700;
+    transition: background .15s;
+  }
+  .pill-filter:hover, .pill-filter:active { background: var(--hover); }
+  .pill-filter svg { width: 18px; height: 18px; fill: var(--text-primary); }
+
+  .dm-search {
+    margin: 12px 12px 8px;
+    display: flex; align-items: center; gap: 10px;
+    height: 44px; padding: 0 14px; border-radius: 9999px;
+    background: var(--surface); color: var(--text-tertiary);
+    border: 1px solid transparent;
+  }
+  .dm-search:focus-within { border-color: var(--x-blue); background: var(--bg); }
+  .dm-search svg { width: 20px; height: 20px; fill: var(--text-tertiary); flex-shrink: 0; }
+  .dm-search input {
+    flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+    color: var(--text-primary); font-size: 16px; font-family: inherit;
+  }
+  .dm-search input::placeholder { color: var(--text-tertiary); }
+
+  .dm-row {
+    display: flex; gap: 12px; padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    align-items: center; cursor: pointer;
+  }
+  .dm-row:active { background: var(--hover); }
+  /* 原版 X 的会话头像是 3:1 的大圆角方形 */
+  .dm-row .avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .dm-main { flex: 1; min-width: 0; }
+  .dm-top { display: flex; align-items: center; gap: 4px; }
+  .dm-name { font-weight: 700; font-size: 15px; }
+  .dm-handle, .dm-time { color: var(--text-secondary); font-size: 14px; }
+  .dm-time { margin-left: auto; font-size: 13px; }
+  .dm-preview {
+    color: var(--text-secondary); font-size: 14px;
+    margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dm-preview.unread { color: var(--text-primary); font-weight: 600; }
+  .dm-unread-dot {
+    width: 8px; height: 8px; border-radius: 9999px;
+    background: var(--x-blue); flex-shrink: 0; margin-left: 6px;
+  }
+  /* 原版 X 风格：绑定条放在搜索框下方，用浅色圆角卡片 */
+  .dm-bind-card {
+    margin: 0 12px 12px; padding: 10px 12px;
+    border-radius: 16px; background: var(--surface);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .dm-bind-card .dot { width: 7px; height: 7px; border-radius: 9999px; background: #bbb; flex-shrink: 0; }
+  .dm-bind-card .dot.on { background: var(--success-green); }
+  .dm-bind-card .bind-label { font-size: 13px; color: var(--text-secondary); flex: 1; min-width: 120px; }
+  .dm-bind-card select {
+    flex: 1; min-width: 140px; height: 32px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-primary); font-size: 13px; padding: 0 8px;
+    outline: none; font-family: inherit;
+  }
+  .dm-bind-card select:focus { border-color: var(--x-blue); }
+
+  /* 聊天视图 */
+  #chatView { display: flex; flex-direction: column; height: 100%; }
+  .chat-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    background: var(--bg); flex-shrink: 0;
+  }
+  .chat-list {
+    flex: 1; overflow-y: auto; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .bubble-row { display: flex; gap: 8px; align-items: flex-end; max-width: 100%; }
+  /* 【新增·日期分隔线】 */
+  .chat-day-sep {
+    display: flex; justify-content: center; margin: 12px 0 8px;
+  }
+  .chat-day-sep span {
+    font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 3px 12px; border-radius: 9999px;
+  }
+  .bubble-row.mine { flex-direction: row-reverse; }
+  .bubble {
+    max-width: 74%;
+    padding: 9px 13px;
+    border-radius: 20px;
+    font-size: 15px; line-height: 1.35;
+    background: var(--surface);
+    color: var(--text-primary);
+    word-break: break-word; white-space: pre-wrap;
+  }
+  .bubble-row.mine .bubble {
+    background: var(--x-blue); color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+  .bubble-row.theirs .bubble { border-bottom-left-radius: 6px; }
+  /* 【性能·长文本折叠】展开按钮 */
+  .bubble-more {
+    color: var(--x-blue); font-size: 13px; font-weight: 700;
+    padding: 0; margin-left: 2px; background: none; font-family: inherit;
+  }
+  .bubble-row.mine .bubble-more { color: #fff; opacity: .9; }
+  .bubble-text { white-space: pre-wrap; }
+  .bubble img, .bubble video { max-width: 200px; border-radius: 14px; display: block; margin-top: 4px; }
+  .chat-input-row {
+    flex-shrink: 0; display: flex; align-items: flex-end; gap: 8px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border); background: var(--bg);
+  }
+  .chat-input-row textarea {
+    flex: 1; min-height: 38px; max-height: 110px; resize: none;
+    border: 1px solid var(--border); outline: none;
+    background: var(--surface); color: var(--text-primary);
+    border-radius: 20px; padding: 9px 14px; font-size: 15px; line-height: 1.3;
+  }
+
+  /* ================= 个人主页 ================= */
+  .profile-head { position: relative; }
+  .profile-banner {
+    height: 120px;
+    background: linear-gradient(135deg, #1d9bf0, #7856ff 55%, #f093fb);
+  }
+  .profile-body { padding: 0 14px 14px; position: relative; }
+  .profile-avatar-row {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-top: -38px; margin-bottom: 10px;
+  }
+  .profile-name { font-size: 20px; font-weight: 800; }
+  .profile-handle { color: var(--text-secondary); font-size: 15px; }
+  .profile-bio { font-size: 15px; line-height: 1.4; margin-top: 8px; white-space: pre-wrap; }
+  .profile-meta { color: var(--text-secondary); font-size: 14px; margin-top: 8px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .profile-meta b { color: var(--text-primary); }
+  .profile-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .pill-btn {
+    padding: 0 16px; height: 34px; border-radius: 9999px;
+    border: 1px solid var(--border); font-weight: 700; font-size: 14px;
+  }
+  .pill-btn.primary { background: var(--text-primary); color: var(--bg); border-color: transparent; }
+  .profile-tabs { display: flex; border-bottom: 1px solid var(--border); margin-top: 6px; }
+  .profile-tab {
+    flex: 1; height: 46px; display: grid; place-items: center;
+    color: var(--text-secondary); font-weight: 500; font-size: 14px;
+    position: relative;
+  }
+  .profile-tab.active { color: var(--text-primary); font-weight: 700; }
+  .profile-tab.active::after {
+    content: ""; position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%); width: 46px; height: 3px;
+    border-radius: 9999px; background: var(--x-blue);
+  }
+
+  /* ================= 搜索 ================= */
+  .search-wrap { padding: 10px 14px; }
+  .search-input-wrap {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9999px; padding: 0 14px; height: 40px;
+  }
+  .search-input-wrap svg { width: 17px; height: 17px; fill: var(--text-secondary); }
+  .search-input-wrap input {
+    flex: 1; border: none; outline: none; background: transparent;
+    color: var(--text-primary); font-size: 15px;
+  }
+  .trend-row { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .trend-meta { font-size: 13px; color: var(--text-secondary); }
+  .trend-topic { font-weight: 700; font-size: 15px; margin-top: 2px; }
+  .trend-count { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* 空状态 */
+  .empty {
+    padding: 48px 24px; text-align: center;
+    color: var(--text-secondary); font-size: 14px; line-height: 1.6;
+  }
+  .empty .big { font-size: 34px; margin-bottom: 10px; }
+
+  /* 加载中 */
+  .loading-row { padding: 40px; text-align: center; color: var(--text-secondary); font-size: 14px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%) translateY(10px);
+    background: rgba(29,155,240,.96); color: #fff;
+    padding: 9px 18px; border-radius: 9999px;
+    font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none;
+    transition: opacity .22s, transform .22s;
+    z-index: 999; max-width: 80vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* 图片查看器 */
+  #lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.95);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 16px;
+  }
+  #lightbox.show { display: flex; }
+  #lightbox img, #lightbox video { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  /* ---------- 图片查看器（多图左右滑动） ---------- */
+  #lightbox.lb-gallery { flex-direction: column; padding: 0; }
+  .lb-stage {
+    position: relative; width: 100%; flex: 1;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; touch-action: pan-y;
+  }
+  .lb-view { width: 100%; height: 100%; display: grid; place-items: center; }
+  .lb-view img, .lb-view video { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .lb-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 42px; height: 42px; border-radius: 9999px;
+    background: rgba(255,255,255,.16); color: #fff; border: none;
+    font-size: 26px; line-height: 1; z-index: 2;
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .lb-nav.prev { left: 12px; }
+  .lb-nav.next { right: 12px; }
+  .lb-nav[hidden] { display: none; }
+  .lb-count {
+    position: absolute; top: calc(12px + env(safe-area-inset-top));
+    left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 13px; font-weight: 600;
+    background: rgba(0,0,0,.45); padding: 4px 12px; border-radius: 9999px;
+    z-index: 3;
+  }
+  .lb-close {
+    position: absolute; top: calc(12px + env(safe-area-inset-top));
+    right: 12px; z-index: 3;
+    width: 38px; height: 38px; border-radius: 9999px; border: none;
+    background: rgba(255,255,255,.16); color: #fff; font-size: 20px;
+    display: grid; place-items: center; cursor: pointer;
+  }
+
+  /* ================= 悬浮发帖按钮（官方右下角蓝圈白加号） ================= */
+  .fab {
+    position: absolute;
+    right: 18px;
+    bottom: calc(var(--tab-h) + 18px + env(safe-area-inset-bottom));
+    width: 56px; height: 56px;
+    border-radius: 9999px;
+    background: var(--x-blue);
+    color: #fff;
+    display: grid; place-items: center;
+    box-shadow: 0 4px 16px rgba(29,155,240,.45);
+    z-index: 60;
+    transition: transform .12s, opacity .15s;
+  }
+  .fab:active { transform: scale(.92); }
+  .fab svg { width: 27px; height: 27px; fill: #fff; }
+
+  /* 发帖 / 私信 编辑器铺满弹层 */
+  #modalMask.compose { align-items: stretch; }
+  #modalMask.compose .sheet {
+    max-width: none; max-height: 100vh; height: 100vh;
+    border-radius: 0; display: flex; flex-direction: column;
+    animation: sheetUp .18s ease;
+  }
+  .compose-head {
+    display: flex; align-items: center; gap: 10px;
+    height: var(--nav-h); flex-shrink: 0; padding: 0 8px;
+  }
+  .compose-head .cancel { font-size: 15px; font-weight: 500; padding: 0 10px; color: var(--text-primary); }
+  .compose-head .grow { flex: 1; }
+  .compose-head .post-btn {
+    padding: 0 18px; height: 34px; border-radius: 9999px;
+    background: var(--x-blue); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .compose-head .post-btn:disabled { opacity: .45; }
+  .compose-body { flex: 1; overflow-y: auto; padding: 4px 16px 12px; }
+  .compose-body .row { display: flex; gap: 12px; }
+  .compose-body textarea {
+    flex: 1; min-height: 84px; resize: none; border: none; outline: none;
+    background: transparent; color: var(--text-primary);
+    font-size: 18px; line-height: 1.45; padding: 6px 0;
+  }
+  .compose-body textarea::placeholder { color: var(--text-secondary); }
+  .compose-tools {
+    display: flex; gap: 4px; margin-top: 8px;
+    border-top: 1px solid var(--border); padding-top: 10px;
+  }
+  #mediaPreview.compose-media { padding: 10px 0 0; }
+  #mediaPreview.compose-media .media-chip img,
+  #mediaPreview.compose-media .media-chip video { width: 92px; height: 92px; border-radius: 12px; }
+
+  /* 浏览帖子界面的账号切换条（从这里进 AI 主页） */
+  .feed-account-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    background: var(--surface); font-size: 12px; color: var(--text-secondary);
+  }
+  .feed-account-bar .pill-account {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px 4px 4px; border-radius: 9999px;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-primary); font-weight: 700; font-size: 12px;
+  }
+  .feed-account-bar .pill-account .avatar { width: 22px; height: 22px; font-size: 9px; }
+
+  /* 聊天视图：禁止外层滚动，输入框固定底部 */
+  .scroll-area.chat-mode { overflow: hidden; display: flex; flex-direction: column; }
+  .scroll-area.chat-mode #chatView { flex: 1; min-height: 0; height: auto; }
+  .chat-bind-tip {
+    font-size: 11px; color: var(--text-secondary);
+    padding: 4px 14px; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex-shrink: 0;
+  }
+  .chat-bind-tip.on { color: var(--success-green); }
+
+  /* ================= 帖子二级详情页 ================= */
+  .post-detail {
+    position: fixed; inset: 0; z-index: 950;
+    background: var(--bg); display: none; flex-direction: column;
+  }
+  .post-detail.show { display: flex; }
+  .pd-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    background: var(--bg); flex: 0 0 auto;
+  }
+  .pd-title { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pd-scroll { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .pd-post { padding: 12px 14px 6px; border-bottom: 1px solid var(--border); }
+  .pd-author { display: flex; gap: 10px; align-items: flex-start; }
+  .pd-author .avatar { flex: 0 0 auto; }
+  .pd-author-main { min-width: 0; flex: 1 1 auto; }
+  .pd-name { font-weight: 700; margin-right: 4px; }
+  .pd-handle { color: var(--text-secondary); font-size: 14px; }
+  .pd-time { color: var(--text-secondary); font-size: 14px; margin-left: 4px; }
+  .pd-text {
+    margin-top: 8px; font-size: 16px; line-height: 1.45;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .pd-text .topic { color: var(--x-blue); }
+  .pd-media {
+    margin-top: 10px; display: flex; gap: 4px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory;
+  }
+  .pd-slide {
+    position: relative; flex: 0 0 100%; scroll-snap-align: center;
+    border-radius: 14px; overflow: hidden; background: var(--surface);
+  }
+  .pd-slide img, .pd-slide video { width: 100%; display: block; max-height: 78vh; object-fit: contain; background: #000; }
+  .pd-counter {
+    position: absolute; right: 8px; bottom: 8px;
+    background: rgba(0,0,0,.62); color: #fff; font-size: 12px;
+    padding: 2px 9px; border-radius: 9999px;
+  }
+  .pd-dots { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+  .pd-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--border); display: block; }
+  .pd-dots i.on { background: var(--x-blue); }
+  .pd-quote {
+    margin-top: 10px; border: 1px solid var(--border);
+    border-radius: 14px; padding: 10px 12px;
+  }
+  .pd-quote-head { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+  .pd-quote-text { font-size: 14px; line-height: 1.4; }
+  .pd-stats {
+    display: flex; gap: 20px; margin-top: 12px; padding-bottom: 10px;
+    font-size: 13px; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  .pd-stats b { color: var(--text-primary); font-weight: 700; }
+  .pd-replies-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px 4px; font-weight: 700; font-size: 15px;
+  }
+  .pd-toggle {
+    background: none; border: none; color: var(--x-blue);
+    font-size: 13px; font-weight: 600; padding: 4px 6px;
+  }
+  .pd-replies { padding: 0 14px 20px; }
+  .pd-msg {
+    padding: 40px 20px; text-align: center;
+    color: var(--text-secondary); font-size: 14px; line-height: 1.6;
+  }
+  .pd-msg .pd-retry {
+    margin-top: 12px; display: inline-block;
+    border: 1px solid var(--border); border-radius: 9999px;
+    padding: 6px 14px; color: var(--text-primary); font-size: 13px;
+  }
+  .pd-empty { padding: 18px 14px; color: var(--text-secondary); font-size: 14px; }
+  .pd-actions { display: flex; gap: 22px; margin-top: 8px; }
+  .pd-actions .action-btn { font-size: 13px; }
+</style>
+</head>
+<body data-theme="light">
+<style>
+  /* ================= 弹窗（替代 prompt，Android WebView 不支持 prompt） ================= */
+  #modalMask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: flex-end; justify-content: center;
+    z-index: 1200; padding: 0;
+  }
+  #modalMask.show { display: flex; }
+  .sheet {
+    width: 100%; max-width: 560px; background: var(--bg);
+    border-radius: 18px 18px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    max-height: 88vh; overflow-y: auto;
+    animation: sheetUp .22s ease;
+  }
+  @keyframes sheetUp { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+  .sheet-title { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+  .sheet-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; }
+  .field input, .field textarea {
+    width: 100%; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface); color: var(--text-primary);
+    padding: 10px 12px; font-size: 15px; outline: none; resize: none;
+  }
+  .field textarea { min-height: 84px; line-height: 1.4; }
+  .field input:focus, .field textarea:focus { border-color: var(--x-blue); }
+  .sheet-row { display: flex; gap: 10px; margin-top: 6px; }
+  .sheet-row button { flex: 1; height: 42px; border-radius: 9999px; font-weight: 700; font-size: 15px; }
+  .btn-ghost { border: 1px solid var(--border); }
+  .btn-solid { background: var(--x-blue); color: #fff; }
+  .btn-solid:disabled { opacity: .5; }
+  .avatar-edit-row { display: flex; align-items: center; gap: 14px; }
+  .avatar-edit-row .avatar { width: 64px; height: 64px; font-size: 22px; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch { width: 30px; height: 30px; border-radius: 9999px; border: 2px solid transparent; }
+  .swatch.on { border-color: var(--text-primary); }
+  /* 私信绑定条 */
+  .bind-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--text-secondary); background: var(--surface);
+  }
+  .bind-bar .dot { width: 7px; height: 7px; border-radius: 9999px; background: #bbb; }
+  .bind-bar .dot.on { background: var(--success-green); }
+  .bind-bar select {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+    color: var(--text-primary); font-size: 12px; padding: 4px 6px; max-width: 46vw;
+  }
+  .pill-mini {
+    padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 700;
+    border: 1px solid var(--border); color: var(--text-primary);
+  }
+  .pill-mini.on { background: var(--success-green); color: #fff; border-color: transparent; }
+  /* 用户搜索结果 */
+  .user-row { display: flex; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border); align-items: center; }
+  .user-row .avatar { width: 42px; height: 42px; font-size: 15px; }
+  .user-main { flex: 1; min-width: 0; }
+  .user-name { font-weight: 700; font-size: 15px; }
+  .user-handle { color: var(--text-secondary); font-size: 13px; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+</style>
+<div id="app">
+  <div class="topbar" id="topbar">
+    <button class="icon-btn back-btn" id="backBtn" style="display:none" aria-label="返回">
+      <svg viewBox="0 0 24 24"><path d="M7.414 13l5.043 5.04-1.414 1.42L3.586 12l7.457-7.46 1.414 1.42L7.414 11H21v2H7.414z"/></svg>
+    </button>
+    <div class="avatar sm" id="topAvatar" data-open-profile="1" style="background:#667eea">U</div>
+    <h1 id="topTitle">主页</h1>
+    <button class="pill-filter" id="dmFilterBtn" style="display:none" aria-label="筛选">
+      <span id="dmFilterText">All</span>
+      <svg viewBox="0 0 24 24"><path d="M12 15.5l-6-6 1.41-1.42L12 12.67l4.59-4.59L18 9.5l-6 6z"/></svg>
+    </button>
+    <button class="icon-btn" id="themeBtn" aria-label="主题">
+      <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
+    </button>
+  </div>
+
+  <div class="scroll-area" id="scrollArea"></div>
+
+  <div class="tabbar" id="tabbar">
+    <button class="tab active" data-tab="home">
+      <svg viewBox="0 0 24 24"><path d="M21.591 7.146L12.52 1.157c-.316-.21-.724-.21-1.04 0l-9.071 5.99c-.26.173-.409.456-.409.757v13.183c0 .502.418.913.929.913H9.14c.51 0 .929-.41.929-.913v-7.075h3.909v7.075c0 .502.417.913.928.913h6.165c.511 0 .929-.41.929-.913V7.904c0-.301-.158-.584-.409-.758zM20 20l-4.5.01.011-7.097c0-.502-.418-.913-.928-.913H9.44c-.511 0-.929.41-.929.913L8.5 20H4V8.773l8.011-5.342L20 8.764z"/></svg>
+      <span class="tab-label">主页</span>
+    </button>
+    <button class="tab" data-tab="search">
+      <svg viewBox="0 0 24 24"><path d="M10.25 3.75c-3.59 0-6.5 2.91-6.5 6.5s2.91 6.5 6.5 6.5c1.795 0 3.419-.726 4.596-1.904 1.178-1.177 1.904-2.801 1.904-4.596 0-3.59-2.91-6.5-6.5-6.5zm-8.5 6.5c0-4.694 3.806-8.5 8.5-8.5s8.5 3.806 8.5 8.5c0 1.986-.682 3.815-1.824 5.262l4.781 4.781-1.414 1.414-4.781-4.781c-1.447 1.142-3.276 1.824-5.262 1.824-4.694 0-8.5-3.806-8.5-8.5z"/></svg>
+      <span class="tab-label">搜索</span>
+    </button>
+    <button class="tab" data-tab="notifications">
+      <svg viewBox="0 0 24 24"><path d="M19.993 9.042C19.48 5.017 16.054 2 11.996 2s-7.49 3.021-7.999 7.051L2.866 18H7.1c.463 2.282 2.481 4 4.9 4s4.437-1.718 4.9-4h4.236l-1.143-8.958zM12 20c-1.306 0-2.417-.835-2.829-2h5.658c-.412 1.165-1.523 2-2.829 2zm-6.866-4l.847-6.698C6.364 6.272 8.941 4 11.996 4s5.627 2.268 6.013 5.295L18.864 16H5.134z"/></svg>
+      <span class="tab-label">通知</span>
+      <span class="badge" id="ntfBadge">0</span>
+    </button>
+    <button class="tab" data-tab="messages">
+      <svg viewBox="0 0 24 24"><path d="M1.998 4.499c0-.828.671-1.499 1.5-1.499h17c.828 0 1.5.671 1.5 1.499v2.858l-10 4.545-10-4.547V4.499zm0 5.053V19.5c0 .828.671 1.5 1.5 1.5h17c.828 0 1.5-.672 1.5-1.5V9.554l-10 4.545-10-4.547z"/></svg>
+      <span class="tab-label">私信</span>
+      <span class="badge" id="dmBadge">0</span>
+    </button>
+  </div>
+  <button class="fab" id="fabPost" aria-label="发帖">
+    <svg viewBox="0 0 24 24"><path d="M11 11V4h2v7h7v2h-7v7h-2v-7H4v-2h7z"/></svg>
+  </button>
+</div>
+
+<div id="toast"></div>
+<div id="lightbox"></div>
+<div id="postDetail" class="post-detail" aria-hidden="true">
+  <div class="pd-header">
+    <button class="icon-btn" id="pdBack" aria-label="返回">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M15.5 4.2 7.7 12l7.8 7.8 1.4-1.4L10.5 12l6.4-6.4z"/></svg>
+    </button>
+    <div class="pd-title" id="pdTitle">推文详情</div>
+  </div>
+  <div class="pd-scroll" id="pdScroll">
+    <div id="pdBody"></div>
+  </div>
+</div>
+
+<input type="file" id="filePickImage" accept="image/*" multiple style="display:none" />
+<input type="file" id="filePickVideo" accept="video/*" multiple style="display:none" />
+<div id="modalMask">
+  <div class="sheet" id="sheetBody"></div>
+</div>
+
+<script>
+/* ================================================================
+   【防白屏】全局错误捕获：JS 一旦语法/运行出错，
+   WebView 里就是一个"壳子"（顶栏在、内容空、按钮无响应），
+   极难排查。这里把错误直接显示到页面上。
+   ================================================================ */
+(function () {
+  window.__xErrors = [];
+  function show(msg) {
+    try {
+      window.__xErrors.push(msg);
+      var box = document.getElementById("xErrorBox");
+      if (!box) {
+        box = document.createElement("div");
+        box.id = "xErrorBox";
+        box.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;" +
+          "background:#b00020;color:#fff;font:12px/1.4 monospace;padding:8px;" +
+          "max-height:40%;overflow:auto;white-space:pre-wrap;";
+        document.body.appendChild(box);
+      }
+      box.textContent = "JS 错误:\n" + window.__xErrors.slice(-3).join("\n---\n");
+    } catch (e) { }
+  }
+  window.addEventListener("error", function (e) {
+    show((e.message || "error") + " @ " + (e.filename || "") + ":" + (e.lineno || ""));
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    show("Promise: " + String((e && e.reason && (e.reason.message || e.reason)) || e.reason));
+  });
+})();
+/* ================================================================
+   桥接层：宿主通过 addJavascriptInterface 注入 window.OperitHost。
+   调用结果取三条通道中先到的一条：返回值/Promise、pollResult 轮询、__xResolve 回推
+   ================================================================ */
+(function () {
+  var pending = {};
+  var seq = 0;
+
+  window.__xResolve = function (id, payload) {
+    var cb = pending[id];
+    if (!cb) return;
+    delete pending[id];
+    // 兼容宿主偶尔回传字符串形式的结果
+    if (typeof payload === "string" && payload) {
+      var c0 = payload.charAt(0);
+      if (c0 === "{" || c0 === "[") {
+        try { payload = JSON.parse(payload); } catch (e) { }
+      }
+    }
+    try { cb(payload); } catch (e) { }
+  };
+
+  var HOST = null;
+  try {
+    HOST = window.OperitHost || window.XSocialHost || null;
+  } catch (e) { HOST = null; }
+
+  function hostReady() {
+    if (HOST) return HOST;
+    try {
+      HOST = window.OperitHost || window.XSocialHost || null;
+    } catch (e) { HOST = null; }
+    return HOST;
+  }
+
+  function normalizeBridgeResult(v) {
+    // 宿主可能回：JSON 字符串 / 已解析对象 / 其它
+    if (typeof v === "string" && v) {
+      var c = v.charAt(0);
+      if (c === "{" || c === "[") {
+        try { return JSON.parse(v); } catch (e) { }
+      }
+      return v;
+    }
+    return v;
+  }
+  // 统一取出 { success, data, message } 结构
+  function unwrapResult(v) {
+    var r = normalizeBridgeResult(v);
+    if (r && typeof r === "object" && !Array.isArray(r) && ("success" in r || "data" in r)) {
+      return r;
+    }
+    if (r && typeof r === "object") return { success: true, data: r };
+    return { success: true, data: r };
+  }
+
+  /* 【运行时失效检测】
+   宿主重新烧录/刷新插件包时会销毁旧的 JsEngine，
+   而已经打开的 WebView 仍持有旧的 ctx 引用 →
+   之后每一次工具调用都会抛 "JsEngine already destroyed"。
+   表现：页面能看、能输入，但发评论/点赞全失败，且报一句看不懂的英文。
+   这里识别该错误并给出可操作的中文提示。 */
+  function isEngineDead(msg) {
+    var s = String(msg || "");
+    return s.indexOf("JsEngine already destroyed") >= 0 ||
+      s.indexOf("already destroyed") >= 0 ||
+      s.indexOf("Engine has been destroyed") >= 0;
+  }
+  var ENGINE_DEAD_MSG = "插件运行时已失效（宿主刚刚更新过插件包），正在重新加载…";
+
+  /* 【自愈】运行时失效时自动重载页面。
+     宿主更新插件包会销毁旧的 JsEngine，而已打开的 WebView 仍持有旧 ctx，
+     此时任何工具调用都会失败。重新加载能拿到新的 ctx，
+     比让用户手动退出重进体验好得多。 */
+  var engineDeadHandled = false;
+  function handleEngineDead() {
+    if (engineDeadHandled) return;
+    engineDeadHandled = true;
+    try {
+      if (typeof showToast === "function") showToast(ENGINE_DEAD_MSG);
+    } catch (e) { }
+    try {
+      setTimeout(function () { location.reload(); }, 1200);
+    } catch (e) { }
+  }
+
+  /* 宿主桥接调用：三道通道兜底 —— ① 返回值/Promise ② pollResult 轮询 ③ __xResolve 回推
+   【关键】宿主只会把「实参」整体作为一个数组递给桥接方法，
+   所以这里必须用**单个对象**调用 host.callTool({...})，
+   不能用 host.callTool(id, name, params) —— 那样参数会在宿主层错位。 */
+  function callTool(name, params) {
+    return new Promise(function (resolve) {
+      var h = hostReady();
+      if (!h || typeof h.callTool !== "function") {
+        resolve({ success: false, message: "宿主桥接不可用" });
+        return;
+      }
+      var id = "c" + (++seq) + "_" + Date.now();
+      var settled = false;
+      var t0 = Date.now();
+      function done(v) {
+        if (settled) return;
+        settled = true;
+        try { delete pending[id]; } catch (e) { }
+        var r = unwrapResult(v);
+        if (r && r.success === false && isEngineDead(r.message)) {
+          r.message = ENGINE_DEAD_MSG;
+          r.engineDead = true;
+          try { handleEngineDead(); } catch (e) { }
+        }
+        resolve((r && r.success === false) ? r : (r || { success: false, message: "空返回" }));
+      }
+      // 通道③：宿主主动回推
+      pending[id] = done;
+      // 通道②：轮询结果仓
+      function poll() {
+        if (settled) return;
+        if (typeof h.pollResult === "function") {
+          var raw = null;
+          try { raw = h.pollResult(id); } catch (e) { raw = null; }
+          if (raw && typeof raw === "string" && raw.length) { done(raw); return; }
+        }
+        if (Date.now() - t0 > 20000) { done({ success: false, message: "调用超时" }); return; }
+        setTimeout(poll, 100);
+      }
+      // 通道①：直接返回
+      var ret = null;
+      try {
+        ret = h.callTool({ id: id, name: String(name || ""), params: params || {} });
+      } catch (e) {
+        var em = String((e && e.message) || e);
+        if (isEngineDead(em)) {
+          done({ success: false, engineDead: true, message: ENGINE_DEAD_MSG });
+          try { handleEngineDead(); } catch (e) { }
+          return;
+        }
+        done({ success: false, message: "调用异常: " + em });
+        return;
+      }
+      if (ret && typeof ret.then === "function") {
+        ret.then(function (v) { done(v); }, function (e) {
+          var em2 = String((e && e.message) || e);
+          if (isEngineDead(em2)) {
+            done({ success: false, engineDead: true, message: ENGINE_DEAD_MSG });
+            try { handleEngineDead(); } catch (e) { }
+            return;
+          }
+          done({ success: false, message: em2 });
+        });
+      } else if (ret !== undefined && ret !== null && ret !== "1") {
+        done(ret);
+        return;
+      }
+      setTimeout(poll, 60);
+    });
+  }
+
+  function pickMedia(kind, multiple) {
+    return new Promise(function (resolve) {
+      var h = hostReady();
+      if (!h || typeof h.pickMedia !== "function") {
+        resolve({ cancelled: true, files: [], message: "宿主不支持文件选择" });
+        return;
+      }
+      var id = "p" + (++seq) + "_" + Date.now();
+      var settled = false;
+      var t0 = Date.now();
+      function done(v) {
+        if (settled) return;
+        settled = true;
+        try { delete pending[id]; } catch (e) { }
+        var r = normalizeBridgeResult(v);
+        resolve(r && typeof r === "object" ? r : { cancelled: true, files: [], message: "空返回" });
+      }
+      pending[id] = done;
+      function poll() {
+        if (settled) return;
+        if (typeof h.pollResult === "function") {
+          var raw = null;
+          try { raw = h.pollResult(id); } catch (e) { raw = null; }
+          if (raw && typeof raw === "string" && raw.length) { done(raw); return; }
+        }
+        if (Date.now() - t0 > 180000) { done({ cancelled: true, files: [], message: "选择超时" }); return; }
+        setTimeout(poll, 150);
+      }
+      var ret = null;
+      try {
+        ret = h.pickMedia({ id: id, kind: String(kind || "image"), multiple: multiple !== false });
+      } catch (e) {
+        done({ cancelled: true, files: [], message: String((e && e.message) || e) });
+        return;
+      }
+      if (ret && typeof ret.then === "function") {
+        ret.then(function (v) { done(v); }, function (e) {
+          done({ cancelled: true, files: [], message: String((e && e.message) || e) });
+        });
+      } else if (ret !== undefined && ret !== null && ret !== "1") {
+        done(ret);
+        return;
+      }
+      setTimeout(poll, 120);
+    });
+  }
+
+  function toast(msg) {
+    var h = hostReady();
+    if (h && typeof h.toast === "function") {
+      try { h.toast(String(msg || "")); } catch (e) { }
+    }
+    showToast(String(msg || ""));
+  }
+
+  /* ================================================================
+     【新增·v20】UI 帧直连对话
+     宿主在 UI 帧里注入了 OperitHost.chatSend / OperitHost.chatHistory，
+     它们直接调用 Tools.Chat.sendMessage / Tools.Chat.getMessages。
+     为什么要走这条通道（而不是后端工具 bridgeSend/bridgePoll）：
+       绑定对话通常就是当前正在跑的会话，在包运行时往里发消息会撞上
+       宿主的 busy 保护（"Previous message is still being processed"），
+       消息没进对话 → AI 永远不回复。UI 帧不受该限制。
+     与 callTool 一样走三通道：返回值/Promise、pollResult 轮询、__xResolve 回推。
+     ================================================================ */
+  function bridgeCall(method, payload, timeoutMs) {
+    return new Promise(function (resolve) {
+      var h = hostReady();
+      if (!h || typeof h[method] !== "function") {
+        resolve({ success: false, message: "宿主不支持 " + method });
+        return;
+      }
+      var id = "h" + (++seq) + "_" + Date.now();
+      var settled = false;
+      var t0 = Date.now();
+      /* 【修复·超时】chatSend 要等 AI 跑完整轮对话才 resolve，
+         20 秒不够 → 会误判成"发送失败"。所以超时按方法区分。 */
+      var limitMs = Number(timeoutMs || 20000);
+      function done(v) {
+        if (settled) return;
+        settled = true;
+        try { delete pending[id]; } catch (e) { }
+        var r = normalizeBridgeResult(v);
+        if (r && typeof r === "object") {
+          resolve(r);
+        } else {
+          resolve({ success: true, data: r });
+        }
+      }
+      pending[id] = done;
+      function poll() {
+        if (settled) return;
+        if (typeof h.pollResult === "function") {
+          var raw = null;
+          try { raw = h.pollResult(id); } catch (e) { raw = null; }
+          if (raw && typeof raw === "string" && raw.length) { done(raw); return; }
+        }
+        if (Date.now() - t0 > limitMs) { done({ success: false, message: "调用超时" }); return; }
+        setTimeout(poll, 100);
+      }
+      var req = { id: id };
+      for (var k in (payload || {})) {
+        if (Object.prototype.hasOwnProperty.call(payload, k)) req[k] = payload[k];
+      }
+      var ret = null;
+      try {
+        ret = h[method](req);
+      } catch (e) {
+        done({ success: false, message: "调用异常: " + ((e && e.message) || e) });
+        return;
+      }
+      if (ret && typeof ret.then === "function") {
+        ret.then(function (v) { done(v); }, function (e) {
+          done({ success: false, message: String((e && e.message) || e) });
+        });
+      } else if (ret !== undefined && ret !== null && ret !== "1") {
+        done(ret);
+        return;
+      }
+      setTimeout(poll, 60);
+    });
+  }
+
+  window.XBridge = {
+    callTool: callTool,
+    pickMedia: pickMedia,
+    toast: toast,
+    chatSend: function (chatId, text) {
+      /* 【修复·超时】chatSend 现在是"立即回执 + 轮询取结果"，
+         而真实结果要等 AI 跑完整轮对话 → 20 秒必然超时。
+         这里给足 5 分钟，避免误报"发送失败"。 */
+      return bridgeCall("chatSend", { chatId: String(chatId || ""), text: String(text || "") }, 300000);
+    },
+    chatHistory: function (chatId, limit) {
+      return bridgeCall("chatHistory", { chatId: String(chatId || ""), limit: Number(limit || 20) }, 30000);
+    },
+    ready: function () { return !!hostReady(); },
+    log: function (m) {
+      var h = hostReady();
+      if (h && typeof h.log === "function") { try { h.log(String(m)); } catch (e) { } }
+    }
+  };
+})();
+
+/* ================================================================
+   页面应用
+   ================================================================ */
+var SVG = {
+  reply: '<svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>',
+  repost: '<svg viewBox="0 0 24 24"><path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z"/></svg>',
+  heart: '<svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>',
+  heartFilled: '<svg viewBox="0 0 24 24"><path d="M20.884 13.19c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>',
+  share: '<svg viewBox="0 0 24 24"><path d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z"/></svg>',
+  bookmark: '<svg viewBox="0 0 24 24"><path d="M4 4.5C4 3.12 5.119 2 6.5 2h11C18.881 2 20 3.12 20 4.5v18.44l-8-5.71-8 5.71V4.5zM6.5 4c-.276 0-.5.22-.5.5v14.56l6-4.29 6 4.29V4.5c0-.28-.224-.5-.5-.5h-11z"/></svg>',
+  bookmarkFilled: '<svg viewBox="0 0 24 24"><path d="M4 4.5C4 3.12 5.119 2 6.5 2h11C18.881 2 20 3.12 20 4.5v18.44l-8-5.71-8 5.71V4.5z"/></svg>',
+  verified: '<svg class="verified" viewBox="0 0 24 24"><path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.918-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.337 2.25c-.416-.165-.866-.25-1.336-.25-2.21 0-3.918 1.79-3.918 4 0 .495.084.965.238 1.4-1.273.65-2.148 2.02-2.148 3.6 0 1.46.748 2.73 1.858 3.45-.11.315-.17.654-.17 1.005 0 1.845 1.4 3.36 3.21 3.527.653 1.08 1.815 1.817 3.152 1.817 1.338 0 2.5-.738 3.153-1.817 1.81-.167 3.21-1.682 3.21-3.527 0-.35-.06-.69-.17-1.005 1.11-.72 1.858-1.99 1.858-3.45z"/></svg>',
+  image: '<svg viewBox="0 0 24 24"><path d="M3 5.5C3 4.119 4.119 3 5.5 3h13C19.881 3 21 4.119 21 5.5v13c0 1.381-1.119 2.5-2.5 2.5h-13C4.119 21 3 19.881 3 18.5v-13zM5.5 5c-.276 0-.5.224-.5.5v9.086l3-3 3 3 5-5 3 3V5.5c0-.276-.224-.5-.5-.5h-13zM19 15.414l-3-3-5 5-3-3-3 3V18.5c0 .276.224.5.5.5h13c.276 0 .5-.224.5-.5v-3.086zM9.75 7C8.784 7 8 7.784 8 8.75s.784 1.75 1.75 1.75 1.75-.784 1.75-1.75S10.716 7 9.75 7z"/></svg>',
+  video: '<svg viewBox="0 0 24 24"><path d="M3 5.5C3 4.119 4.119 3 5.5 3h13C19.881 3 21 4.119 21 5.5v13c0 1.381-1.119 2.5-2.5 2.5h-13C4.119 21 3 19.881 3 18.5v-13zM5.5 5c-.276 0-.5.224-.5.5v13c0 .276.224.5.5.5h13c.276 0 .5-.224.5-.5v-13c0-.276-.224-.5-.5-.5h-13z"/><path d="M10 8.5l6 3.5-6 3.5v-7z"/></svg>',
+  back: '<svg viewBox="0 0 24 24"><path d="M7.414 13l5.043 5.04-1.414 1.42L3.586 12l7.457-7.46 1.414 1.42L7.414 11H21v2H7.414z"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="M13.414 12l5.793-5.793c.39-.39.39-1.023 0-1.414s-1.023-.39-1.414 0L12 10.586 6.207 4.793c-.39-.39-1.023-.39-1.414 0s-.39 1.023 0 1.414L10.586 12l-5.793 5.793c-.39.39-.39 1.023 0 1.414.195.195.45.293.707.293s.512-.098.707-.293L12 13.414l5.793 5.793c.195.195.45.293.707.293s.512-.098.707-.293c.39-.39.39-1.023 0-1.414L13.414 12z"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M8 5.14v13.72L19 12 8 5.14z"/></svg>',
+  like: '<svg viewBox="0 0 24 24"><path d="M20.884 13.19c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>',
+  follow: '<svg viewBox="0 0 24 24"><path d="M17.863 13.44c1.477 1.58 2.366 3.8 2.632 6.46l.11 1.1H3.395l.11-1.1c.266-2.66 1.155-4.88 2.632-6.46C7.627 11.85 9.648 11 12 11s4.373.85 5.863 2.44zM12 2C9.791 2 8 3.79 8 6s1.791 4 4 4 4-1.79 4-4-1.791-4-4-4z"/></svg>',
+  dm: '<svg viewBox="0 0 24 24"><path d="M1.998 5.5c0-1.381 1.119-2.5 2.5-2.5h15c1.381 0 2.5 1.119 2.5 2.5v13c0 1.381-1.119 2.5-2.5 2.5h-15c-1.381 0-2.5-1.119-2.5-2.5v-13zm2.5-.5c-.276 0-.5.224-.5.5v2.764l8 3.638 8-3.636V5.5c0-.276-.224-.5-.5-.5h-15zm15.5 5.463l-8 3.636-8-3.638V18.5c0 .276.224.5.5.5h15c.276 0 .5-.224.5-.5v-8.037z"/></svg>',
+  chevronDown: '<svg viewBox="0 0 24 24"><path d="M12 15.5l-6-6 1.41-1.42L12 12.67l4.59-4.59L18 9.5l-6 6z"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><path d="M10.25 3.75c-3.59 0-6.5 2.91-6.5 6.5s2.91 6.5 6.5 6.5c1.795 0 3.419-.726 4.596-1.904 1.178-1.177 1.904-2.801 1.904-4.596 0-3.59-2.91-6.5-6.5-6.5zm-8.5 6.5c0-4.694 3.806-8.5 8.5-8.5s8.5 3.806 8.5 8.5c0 1.986-.682 3.815-1.824 5.262l4.781 4.781-1.414 1.414-4.781-4.781c-1.447 1.142-3.276 1.824-5.262 1.824-4.694 0-8.5-3.806-8.5-8.5z"/></svg>'
+};
+
+/* ---------------- 工具函数 ---------------- */
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, String.fromCharCode(38, 113, 117, 111, 116, 59))
+    .replace(/'/g, "&#039;");
+}
+function fmtCount(n) {
+  n = Number(n) || 0;
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+function relTime(ts) {
+  var s = Math.max(0, Math.floor((Date.now() - Number(ts || 0)) / 1000));
+  if (s < 5) return "刚刚";
+  if (s < 60) return s + "秒";
+  var m = Math.floor(s / 60);
+  if (m < 60) return m + "分钟";
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + "小时";
+  var d = Math.floor(h / 24);
+  if (d < 7) return d + "天";
+  var dt = new Date(Number(ts));
+  return (dt.getMonth() + 1) + "月" + dt.getDate() + "日";
+}
+function iniFor(name, handle) {
+  var s = String(name || handle || "?");
+  var m = s.trim().split(/\s+/);
+  if (m.length >= 2) return (m[0][0] + m[1][0]).toUpperCase();
+  return s.substring(0, 2).toUpperCase();
+}
+var GRADS = {
+  user: "linear-gradient(135deg,#667eea,#764ba2)",
+  ai: "linear-gradient(135deg,#1d9bf0,#7856ff)"
+};
+function gradFor(id) { return GRADS[id] || GRADS.user; }
+function mediaUrl(p) {
+  if (!p) return "";
+  var s = String(p);
+  if (s.indexOf("http") === 0 || s.indexOf("data:") === 0) return s;
+  return "/file?path=" + encodeURIComponent(s);
+}
+
+/* ---------------- 本地文件 → base64（WebView 原生 input[type=file] 兜底） ---------------- */
+function readAsDataURL(file) {
+  return new Promise(function (resolve, reject) {
+    try {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(String(fr.result || "")); };
+      fr.onerror = function () { reject(fr.error || new Error("读取失败")); };
+      fr.readAsDataURL(file);
+    } catch (e) { reject(e); }
+  });
+}
+
+/* 图片压到长边 1440、JPEG 0.86，避免 base64 过大把桥接撑爆 */
+function compressImage(file, maxSide, quality) {
+  return readAsDataURL(file).then(function (dataUrl) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var w = img.naturalWidth || img.width;
+          var h = img.naturalHeight || img.height;
+          var scale = Math.min(1, (maxSide || 1440) / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
+          var cv = document.createElement("canvas");
+          cv.width = cw; cv.height = ch;
+          cv.getContext("2d").drawImage(img, 0, 0, cw, ch);
+          var out = cv.toDataURL("image/jpeg", quality || 0.86);
+          resolve(out && out.length > 64 ? out : dataUrl);
+        } catch (e) { resolve(dataUrl); }
+      };
+      img.onerror = function () { resolve(dataUrl); };
+      img.src = dataUrl;
+    });
+  });
+}
+
+function pickViaInput(kind) {
+  var id = kind === "video" ? "filePickVideo" : "filePickImage";
+  var el = document.getElementById(id);
+  if (!el) return Promise.resolve({ cancelled: true, files: [] });
+  return new Promise(function (resolve) {
+    var done = false;
+    var blurred = false;
+    function onBlur() { blurred = true; }
+    function cleanup() {
+      try { window.removeEventListener("blur", onBlur); } catch (e) { }
+    }
+    function finish(v) {
+      if (done) return;
+      done = true;
+      cleanup();
+      el.onchange = null;
+      if (v && typeof v === "object") v.native = true;
+      resolve(v);
+    }
+    el.value = "";
+    el.onchange = function () {
+      var list = el.files ? Array.prototype.slice.call(el.files) : [];
+      if (!list.length) { finish({ cancelled: true, files: [] }); return; }
+      /* 【修复·多图只显示 4 张·选图环节】
+         旧实现：list.slice(0, 4) —— 选完图直接只取前 4 个文件，
+         用户选 6 张，第 5、6 张在**选择阶段**就被丢掉了，
+         连「已选 6 张」的提示都不会出现。
+         新实现：全部处理。上限从 4 提到 9（与 X 原生一致），
+         超过上限时给出明确提示，而不是静默丢弃。 */
+      var MAX_MEDIA = 20;
+      var picked = list.length > MAX_MEDIA ? list.slice(0, MAX_MEDIA) : list;
+      var dropped = list.length - picked.length;
+      if (dropped > 0) {
+        try { showToast("最多 " + MAX_MEDIA + " 个，已忽略 " + dropped + " 个"); } catch (e) { }
+      }
+      var tasks = picked.map(function (f) {
+        if (kind === "video") {
+          if (Number(f.size) > 48 * 1024 * 1024) return Promise.resolve(null);
+          return readAsDataURL(f).then(function (d) { return { data: d, name: f.name, type: "video" }; })
+            .catch(function () { return null; });
+        }
+        return compressImage(f, 1440, 0.86).then(function (d) { return { data: d, name: f.name, type: "image" }; })
+          .catch(function () { return null; });
+      });
+      Promise.all(tasks).then(function (arr) {
+        var ok = arr.filter(function (x) { return x && x.data; });
+        finish({ cancelled: !ok.length, files: ok, data: ok, dropped: dropped });
+      });
+    };
+    try { window.addEventListener("blur", onBlur); } catch (e) { }
+    try { el.click(); } catch (e) { finish({ cancelled: true, files: [] }); }
+    // 宿主 WebView 可能没有接管 onShowFileChooser：页面没失焦就说明选择器根本没弹出
+    setTimeout(function () {
+      if (!done && !blurred) finish({ cancelled: true, files: [], message: "宿主未接管文件选择" });
+    }, 1200);
+    setTimeout(function () { if (!done) finish({ cancelled: true, files: [] }); }, 180000);
+  });
+}
+/* 宿主文件选择器（ctx.openFilePicker）：返回本地绝对路径数组，最可靠 */
+function pickFromHost(kind, multiple) {
+  return XBridge.pickMedia(kind, multiple !== false).then(function (rr) {
+    var cancelled = !!(rr && rr.cancelled);
+    if (cancelled) return { files: [], cancelled: true, message: (rr && rr.message) || "" };
+    var files = [];
+    if (typeof rr === "string") files = [rr];
+    else if (rr) files = Array.isArray(rr.files) ? rr.files : (Array.isArray(rr.paths) ? rr.paths : []);
+    var out = [];
+    files.forEach(function (f) {
+      var p = typeof f === "string" ? f : (f && (f.path || f.filePath || f.uri) || "");
+      if (p) out.push({ path: p, name: (f && f.name) || String(p).split("/").pop() || "" });
+    });
+    return { files: out, message: (rr && rr.message) || "" };
+  });
+}
+/* ---------------- 弹窗（Android WebView 不支持 prompt，全部改用底部弹层） ---------------- */
+function openSheet(html) {
+  var mask = document.getElementById("modalMask");
+  var body = document.getElementById("sheetBody");
+  if (!mask || !body) return null;
+  body.innerHTML = html;
+  mask.classList.add("show");
+  return body;
+}
+function closeSheet() {
+  var mask = document.getElementById("modalMask");
+  var body = document.getElementById("sheetBody");
+  if (mask) mask.classList.remove("show");
+  if (body) body.innerHTML = "";
+}
+/* ---------------- 头像渲染：支持自定义头像图片 ---------------- */
+function avatarInner(id) {
+  var acc = S.accounts[id] || {};
+  if (acc.avatarPath) {
+    return '<img src="' + esc(mediaUrl(acc.avatarPath)) + '" alt="" />';
+  }
+  return esc(iniFor(acc.displayName, acc.handle));
+}
+function avatarStyle(id) {
+  var acc = S.accounts[id] || {};
+  if (acc.avatarPath) return "background:#222";
+  return "background:" + gradFor(id);
+}
+
+var toastTimer = null;
+function showToast(msg) {
+  var el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove("show"); }, 1900);
+}
+function openLightbox(src, isVideo) {
+  var lb = document.getElementById("lightbox");
+  if (!lb) return;
+  lb.innerHTML = isVideo
+    ? '<video src="' + esc(src) + '" controls autoplay playsinline></video>'
+    : '<img src="' + esc(src) + '" />';
+  lb.classList.add("show");
+}
+function closeLightbox() {
+  var lb = document.getElementById("lightbox");
+  if (!lb) return;
+  lb.classList.remove("show");
+  lb.classList.remove("lb-gallery");
+  lb.innerHTML = "";
+}
+
+/* ---------------- 图片查看器（多图浏览 / 左右滑动） ----------------
+   items: [{src, isVideo}]，index 为当前项序号。
+   · 左右箭头按钮切换
+   · 手指左右滑动切换
+   · 顶部显示「n / total」，右上角关闭
+*/
+var LB_STATE = { items: [], index: 0 };
+function mediaListForPost(postId) {
+  var list = [];
+  for (var i = 0; i < (S.posts || []).length; i++) {
+    var p = S.posts[i];
+    if (!p || String(p.id) !== String(postId)) continue;
+    var atts = Array.isArray(p.attachments) ? p.attachments : [];
+    for (var j = 0; j < atts.length; j++) {
+      var a = atts[j] || {};
+      list.push({ src: mediaUrl(a.path), isVideo: a.type === "video" });
+    }
+    break;
+  }
+  return list;
+}
+function openMediaViewer(items, index) {
+  var lb = document.getElementById("lightbox");
+  if (!lb || !items || !items.length) return;
+  LB_STATE.items = items;
+  LB_STATE.index = Math.max(0, Math.min(items.length - 1, Number(index || 0)));
+  lb.classList.add("lb-gallery");
+  lb.innerHTML =
+    '<div class="lb-stage">' +
+      '<button class="lb-nav prev" aria-label="上一张">&#8249;</button>' +
+      '<div class="lb-view"></div>' +
+      '<button class="lb-nav next" aria-label="下一张">&#8250;</button>' +
+      '<div class="lb-count"></div>' +
+      '<button class="lb-close" aria-label="关闭">&#215;</button>' +
+    '</div>';
+  var prev = lb.querySelector(".lb-nav.prev");
+  var next = lb.querySelector(".lb-nav.next");
+  var close = lb.querySelector(".lb-close");
+  if (prev) prev.onclick = function () { lbMove(-1); };
+  if (next) next.onclick = function () { lbMove(1); };
+  if (close) close.onclick = function () { closeLightbox(); };
+  // 滑动切换
+  var sx = 0, sy = 0, tracking = false;
+  var stage = lb.querySelector(".lb-stage");
+  if (stage) {
+    stage.addEventListener("touchstart", function (e) {
+      var t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      sx = t.clientX; sy = t.clientY; tracking = true;
+    }, { passive: true });
+    stage.addEventListener("touchend", function (e) {
+      if (!tracking) return;
+      tracking = false;
+      var t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      var dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) lbMove(dx < 0 ? 1 : -1);
+    }, { passive: true });
+  }
+  lb.classList.add("show");
+  lbRender();
+}
+function lbMove(delta) {
+  if (!LB_STATE.items.length) return;
+  var n = LB_STATE.items.length;
+  LB_STATE.index = (LB_STATE.index + delta + n) % n;
+  lbRender();
+}
+function lbRender() {
+  var lb = document.getElementById("lightbox");
+  if (!lb) return;
+  var view = lb.querySelector(".lb-view");
+  var cnt = lb.querySelector(".lb-count");
+  var prev = lb.querySelector(".lb-nav.prev");
+  var next = lb.querySelector(".lb-nav.next");
+  var it = LB_STATE.items[LB_STATE.index];
+  if (!it) return;
+  if (view) {
+    view.innerHTML = it.isVideo
+      ? '<video src="' + esc(it.src) + '" controls autoplay playsinline></video>'
+      : '<img src="' + esc(it.src) + '" />';
+  }
+  if (cnt) cnt.textContent = (LB_STATE.index + 1) + " / " + LB_STATE.items.length;
+  var single = LB_STATE.items.length < 2;
+  if (prev) prev.hidden = single;
+  if (next) next.hidden = single;
+}
+
+/* ---------------- 全局状态 ---------------- */
+var S = {
+  tab: "home",
+  view: "list",       // list | chat | profile
+  posts: [],
+  accounts: {},
+  me: "user",
+  peer: "ai",
+  chatPeer: null,
+notifications: [],
+  ntfTab: "all",        // 通知分页：all | mentions | verified
+  threads: [],
+  profileWho: "user",
+  loading: false,
+  pendingMedia: [],
+  lastPostedOk: false,
+  chatOptions: [],
+  chatOptionsReady: false,
+  chatLinks: {},
+  chatLinkMeta: {},
+  chatMessages: [],
+  chatLinksLoaded: false,
+  openComments: {},
+  profileCache: {},
+  dmQuery: "",          // 私信列表搜索关键词
+  dmFilter: "all",      // 私信筛选：all | unread
+  /* 【修复·会话切换错乱】竞态令牌。
+     openChat 里的 dmMessages / syncAiReplies 都是异步的，
+     用户快速切换会话时，上一个会话的回调可能后到，把旧数据
+     renderChat 到当前会话 → 表现为「切换后用户消息不显示」「消息错乱」。
+     每次 openChat 自增 token，回调里校验 token 是否仍是最新。 */
+  chatToken: 0
+};
+
+var elScroll = document.getElementById("scrollArea");
+var elTopTitle = document.getElementById("topTitle");
+var elTopAvatar = document.getElementById("topAvatar");
+var elTabbar = document.getElementById("tabbar");
+
+/* ---------------- 数据操作 ---------------- */
+/* 【修复·自动同步】AI/工具侧发帖后，前端要能自动看到。
+   做法：定时拉一次 status，用「帖子指纹」判断内容是否真的变了，
+   只有变了才重渲染 —— 避免每 3 秒无脑重绘（会打断滚动、闪屏）。 */
+var feedFingerprint = "";
+var feedPoller = null;
+
+function fingerprintPosts(posts) {
+  if (!Array.isArray(posts)) return "";
+  var parts = [];
+  for (var i = 0; i < posts.length; i++) {
+    var p = posts[i];
+    parts.push(p.id + "|" + (p.text || "").length + "|" +
+      ((p.likedBy || []).length) + "," + ((p.retweetedBy || []).length) + "," + ((p.bookmarkedBy || []).length) + "|" +
+      ((p.attachments || []).length) + "|" + (Number(p.commentCount) || 0) + "|" +
+      (p.likeCount || 0) + "," + (p.retweetCount || 0) + "," + (p.bookmarkCount || 0));
+  }
+  return parts.join(";");
+}
+
+/* 【性能·聊天时暂停首页轮询】
+   feedPoller 每 3 秒调一次 x_social:status，后端每次都要全量读 state.json（42KB）。
+   停在聊天界面时这个轮询毫无意义（聊天不显示首页），却和聊天加载抢 IO，
+   正是「打开聊天界面卡一下」的隐形帮凶之一。
+   进入聊天时停掉，离开聊天再恢复。 */
+function stopFeedPoller() {
+  if (feedPoller) {
+    try { clearInterval(feedPoller); } catch (e) { }
+    feedPoller = null;
+  }
+}
+/* 【性能·局部更新】首页轮询用的轻量版。
+   light 模式后端不返回评论正文，这里把**已展开评论区**的那几条帖子
+   的评论从内存里保留下来，避免轮询把正在看的评论清空。 */
+function preserveOpenComments(nextPosts) {
+  var open = S.openComments || {};
+  var any = false;
+  for (var i = 0; i < nextPosts.length; i++) {
+    var p = nextPosts[i];
+    if (!p || !open[p.id]) continue;
+    var old = postById(p.id);
+    if (old && Array.isArray(old.comments) && old.comments.length) {
+      p.comments = old.comments;
+      any = true;
+    }
+  }
+  return any;
+}
+
+function startFeedPoller() {
+  if (feedPoller) return;
+  feedPoller = setInterval(function () {
+    // 页面不可见时跳过，省电也避免后台无谓请求
+    try { if (document.hidden) return; } catch (e) { }
+    // 正在聊天视图时只更新数据，不打断聊天
+    var wasView = S.view, wasTab = S.tab;
+    XBridge.callTool("x_social:status", { limit: 100, light: true }).then(function (r) {
+      if (!r || r.success === false) return;
+      var d = (r.data || r) || {};
+      var nextPosts = Array.isArray(d.posts) ? d.posts : [];
+      preserveOpenComments(nextPosts);
+      var fp = fingerprintPosts(nextPosts);
+      // 账号资料变了（改名/换头像）也要同步
+      var accChanged = false;
+      if (Array.isArray(d.accounts)) {
+        for (var i = 0; i < d.accounts.length; i++) {
+          var a = d.accounts[i];
+          var old = S.accounts[a.id];
+          if (!old || old.displayName !== a.displayName || old.handle !== a.handle || old.avatarPath !== a.avatarPath) {
+            accChanged = true; break;
+          }
+        }
+      }
+      if (fp === feedFingerprint && !accChanged) return;
+      feedFingerprint = fp;
+      S.posts = nextPosts;
+      if (Array.isArray(d.accounts)) {
+        S.accounts = {};
+        d.accounts.forEach(function (a) { S.accounts[a.id] = a; });
+      }
+      updateMeAvatar();
+      // 只在列表视图重绘，避免打断聊天/详情
+      if (S.view === "list" && S.tab === "home") renderHome();
+      else if (S.view === "profile") renderProfile(S.profileWho);
+    });
+  }, 3000);
+}
+
+function refreshFeed() {
+  return XBridge.callTool("x_social:status", { limit: 100 }).then(function (r) {
+    var d = (r && (r.data || r)) || {};
+    S.posts = Array.isArray(d.posts) ? d.posts : [];
+    feedFingerprint = fingerprintPosts(S.posts);
+    if (Array.isArray(d.accounts)) {
+      S.accounts = {};
+      d.accounts.forEach(function (a) { S.accounts[a.id] = a; });
+    }
+    updateMeAvatar();
+    if (S.view === "list" && S.tab === "home") renderHome();
+  });
+}
+function refreshNotifications() {
+  return XBridge.callTool("x_social:notifications", { actor: S.me, limit: 60 }).then(function (r) {
+    var d = (r && (r.data || r)) || {};
+    S.notifications = Array.isArray(d.notifications) ? d.notifications : [];
+    updateBadges();
+    if (S.view === "list" && S.tab === "notifications") renderNotifications();
+  });
+}
+/* 打开通知页 = 已读：把该账号收到的通知标记为已读，角标的小蓝点随之清掉。
+   之前后端没有写入 read 的路径，角标永远消不掉。
+   注意：必须等 refreshNotifications() 取回列表之后再标记，
+   否则异步返回的旧数据会把 read 覆盖回 false。 */
+function markNotificationsRead() {
+  return refreshNotifications().then(function () {
+    return XBridge.callTool("x_social:readNotifications", { actor: S.me }).then(function () {
+      S.notifications.forEach(function (n) { n.read = true; });
+      updateBadges();
+    });
+  }).catch(function () { });
+}
+function refreshThreads() {
+  return XBridge.callTool("x_social:dmList", { actor: S.me }).then(function (r) {
+    var d = (r && (r.data || r)) || {};
+    S.threads = Array.isArray(d.threads) ? d.threads : [];
+    updateBadges();
+    if (S.view === "list" && S.tab === "messages") renderMessages();
+  });
+}
+function updateBadges() {
+  var ntf = S.notifications.filter(function (n) { return !n.read; }).length;
+  var dm = S.threads.reduce(function (a, t) { return a + (Number(t.unread) || 0); }, 0);
+  var nb = document.getElementById("ntfBadge");
+  var db = document.getElementById("dmBadge");
+  if (nb) {
+    nb.textContent = ntf > 99 ? "99+" : String(ntf);
+    nb.classList.toggle("show", ntf > 0);
+  }
+  if (db) {
+    db.textContent = dm > 99 ? "99+" : String(dm);
+    db.classList.toggle("show", dm > 0);
+  }
+}
+/* 顶栏右侧「All ⌄」筛选按钮：只在私信(Chat)页显示 */
+function setDmFilterVisible(on) {
+  var btn = document.getElementById("dmFilterBtn");
+  if (!btn) return;
+  btn.style.display = on ? "inline-flex" : "none";
+  var txt = document.getElementById("dmFilterText");
+  if (txt) txt.textContent = S.dmFilter === "unread" ? "Unread" : "All";
+}
+
+/* 筛选：All / Unread 切换 */
+function toggleDmFilter() {
+  S.dmFilter = S.dmFilter === "unread" ? "all" : "unread";
+  setDmFilterVisible(true);
+  renderMessages();
+}
+
+function updateMeAvatar() {
+  var acc = S.accounts[S.me] || { displayName: "You", handle: "@you" };
+  if (elTopAvatar) {
+    elTopAvatar.setAttribute("style", avatarStyle(S.me));
+    elTopAvatar.setAttribute("data-open-profile", "1");
+    elTopAvatar.setAttribute("title", "我的主页");
+    elTopAvatar.innerHTML = avatarInner(S.me);
+  }
+}
+
+/* 聊天页顶栏：显示「对方」的头像/资料，而不是当前浏览者自己。
+   之前固定用 S.me，导致跟 AI 聊天时顶部挂的是用户自己的头像。 */
+function updateChatTopAvatar(peer) {
+  if (!elTopAvatar) return;
+  var acc = S.accounts[peer] || {};
+  elTopAvatar.setAttribute("style", avatarStyle(peer));
+  elTopAvatar.setAttribute("data-goto-author", peer);
+  elTopAvatar.removeAttribute("data-open-profile");
+  elTopAvatar.setAttribute("title", (acc.displayName || acc.handle || peer) + " 的主页");
+  elTopAvatar.innerHTML = avatarInner(peer);
+}
+
+function commentHTML(c) {
+  var acc = S.accounts[c.authorId] || {};
+  var cname = acc.displayName || c.authorDisplayName || acc.handle || c.authorHandle || "Unknown";
+  var chandle = acc.handle || c.authorHandle || ("@" + (c.authorId || "user"));
+  return '' +
+    '<div class="comment-item" data-comment="' + esc(c.id || "") + '">' +
+      '<div class="avatar" style="' + avatarStyle(c.authorId) + '" data-goto-author="' + esc(c.authorId) + '">' +
+        avatarInner(c.authorId) +
+      '</div>' +
+      '<div class="comment-main">' +
+        '<div class="comment-head">' +
+          '<span class="comment-name" data-goto-author="' + esc(c.authorId) + '">' + esc(cname) + '</span>' +
+          '<span class="comment-handle">' + esc(chandle) + '</span>' +
+          '<span class="comment-time">' + esc(relTime(c.createdAtMs)) + '</span>' +
+        '</div>' +
+        '<div class="comment-text">' + esc(c.text || "") + '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+/* 评论表单（每个帖子下方一个） */
+function commentFormHTML(postId) {
+  return '' +
+    '<div class="comment-form" data-comment-form="' + esc(postId) + '">' +
+      '<div class="avatar" style="' + avatarStyle(S.me) + '">' + avatarInner(S.me) + '</div>' +
+      '<div class="comment-input-wrap">' +
+        '<textarea class="comment-input" rows="1" placeholder="写下你的评论…" data-comment-input="' + esc(postId) + '"></textarea>' +
+        '<button class="comment-send" disabled data-comment-send="' + esc(postId) + '">发送</button>' +
+      '</div>' +
+    '</div>';
+}
+
+/* 评论区（含展开/收起） */
+function commentsBoxHTML(p) {
+  var list = Array.isArray(p.comments) ? p.comments : [];
+  var open = S.openComments && S.openComments[p.id];
+  var html = '';
+  if (open) {
+    html += '<div class="comments-box" data-comments="' + esc(p.id) + '">';
+    if (list.length) {
+      html += list.map(commentHTML).join("");
+    } else {
+      html += '<div class="comments-empty">还没有评论，来说点什么吧</div>';
+    }
+    html += commentFormHTML(p.id);
+    html += '</div>';
+  }
+  return html;
+}
+
+/* ---------------- 转推：原作者信息解析 ----------------
+   【修复·转推卡片头部显示原作者】
+   旧实现：转推副本的卡片头部直接沿用转推者自己的 name/handle/time，
+   于是"张三的帖子被李四转推"却显示成"李四 @lisi · 34秒"。
+   新实现：头部显示**原作者**（头像/昵称/handle/发布时间），
+   转推者只保留在上一行"XX 转推了"里 —— 与 X 原版一致。
+   原作者身份优先取实时账号表（改过昵称/用户名后立刻同步）。 */
+function rtOriginInfo(p) {
+  if (!p || !p.retweetOfPostId) return null;
+  var origin = null;
+  try { origin = pdFindPost(p.retweetOfPostId); } catch (e) { origin = null; }
+  var originId = p.retweetOfAuthorId || (origin ? origin.authorId : "");
+  var oacc = (originId && S.accounts) ? (S.accounts[originId] || {}) : {};
+  var name = oacc.displayName || p.retweetOfAuthorDisplayName ||
+             (origin ? (origin.authorDisplayName || "") : "") ||
+             oacc.handle || p.retweetOfAuthorHandle || "未知作者";
+  var handle = oacc.handle || p.retweetOfAuthorHandle ||
+               (origin ? (origin.authorHandle || "") : "") ||
+               (originId ? ("@" + originId) : "");
+  var time = p.retweetOfCreatedAtMs || (origin ? origin.createdAtMs : 0);
+  var atts = (Array.isArray(p.retweetOfAttachments) && p.retweetOfAttachments.length)
+    ? p.retweetOfAttachments
+    : (origin && Array.isArray(origin.attachments) ? origin.attachments : []);
+  var text = p.retweetOfText || (origin ? (origin.text || "") : "");
+  return { authorId: originId, name: name, handle: handle, time: time, text: text, attachments: atts };
+}
+/* ---------------- 渲染：帖子 ---------------- */
+function postHTML(p) {
+  var acc = S.accounts[p.authorId] || {};
+  // 【修复·昵称同步】账号表（实时）优先于帖子里的快照，
+  // 用户改了昵称/用户名后，所有旧帖立刻显示新名字。
+  var name = acc.displayName || p.authorDisplayName || acc.handle || p.authorHandle || "Unknown";
+  var handle = acc.handle || p.authorHandle || ("@" + (p.authorId || "user"));
+  var liked = (p.likedBy || []).indexOf(S.me) >= 0;
+  var reposted = (p.retweetedBy || []).indexOf(S.me) >= 0;
+  var bookmarked = (p.bookmarkedBy || []).indexOf(S.me) >= 0;
+  var atts = Array.isArray(p.attachments) ? p.attachments : [];
+  var isMine = p.authorId === S.me;
+  /* 【修复·转推卡片】转推副本自身无媒体，媒体挂在原帖上 */
+  var rt = rtOriginInfo(p);
+  if (rt && rt.attachments.length) atts = rt.attachments;
+
+  var mediaHtml = "";
+  if (atts.length) {
+    /* 【修复·多图只显示 4 张】
+       旧实现：atts.slice(0, 4) 硬编码截断，第 5 张及以后直接被丢弃，
+       用户发 6 张图只能看到 4 张，且没有任何提示。
+       新实现：全部渲染。X 的原生行为是：
+         1 张 → 单列大图
+         2 张 → 左右两列
+         3 张 → 左列 1 张大图 + 右列 2 张（实际是 3 列网格首列跨 2 行）
+         4 张 → 2×2
+         5~9 张 → 3 列网格
+       这里用 grid 实现，3 张时用「首图跨两行」还原 X 的版式。 */
+    var n = atts.length;
+    var cls = n === 1 ? "one" : (n === 2 ? "two" : (n === 3 ? "three" : (n === 4 ? "four" : "many")));
+    var inner = "";
+    atts.forEach(function (a, i) {
+      var src = mediaUrl(a.path);
+      if (a.type === "video") {
+        /* 【修复·视频不显示封面】
+           旧实现：<video> 没有 poster，WebView 里 preload="metadata"
+           常常拿不到首帧 → 视频位置是一片黑。
+           新实现：
+             ① 用 <video poster="..."> 指向首帧图（后端若已生成则用）
+             ② 没有 poster 时，用 CSS 渐变占位 + 播放徽标，至少不是纯黑
+             ③ 加 #t=0.1 让浏览器跳到 0.1s，能拿到首帧当封面 */
+        var poster = a.poster || a.thumbnail || a.cover || "";
+        var posterAttr = poster ? ' poster="' + esc(mediaUrl(poster)) + '"' : "";
+        inner += '<div class="media-video-wrap">' +
+          '<video class="mi" src="' + esc(src) + '"' + posterAttr +
+          ' preload="metadata" playsinline data-video="' + esc(src) + '#t=0.1" data-mp="' + esc(p.id) + '" data-mi="' + i + '"></video>' +
+          '<div class="play-badge">' + SVG.play + '</div>' +
+          (poster ? '' : '<div class="video-fallback"></div>') +
+          '</div>';
+      } else {
+        inner += '<img class="mi" src="' + esc(src) + '" data-img="' + esc(src) + '" data-mp="' + esc(p.id) + '" data-mi="' + i + '" loading="lazy" />';
+      }
+    });
+    mediaHtml = '<div class="post-media ' + cls + '">' + inner + '</div>';
+  }
+
+  var repostMark = "";
+  var bodyText = p.text || "";
+  /* 【修复·转推卡片】头部显示原作者；转推者只出现在"XX 转推了"一行 */
+  var hName = name, hHandle = handle, hTime = p.createdAtMs, hAuthorId = p.authorId;
+  if (rt) {
+    repostMark = '<div class="repost-mark">' + SVG.repost + '<span>' + esc(name) + ' 转推了</span></div>';
+    bodyText = rt.text;
+    hName = rt.name; hHandle = rt.handle; hTime = rt.time; hAuthorId = rt.authorId;
+  }
+
+  var cCount = Array.isArray(p.comments) ? p.comments.length : (Number(p.commentCount) || 0);
+  var cOpen = S.openComments && S.openComments[p.id];
+  return '' +
+    (repostMark ? repostMark : '') +
+    '<article class="post" data-post="' + esc(p.id) + '" data-author="' + esc(p.authorId) + '">' +
+      '<div class="avatar" style="' + avatarStyle(hAuthorId) + '" data-goto-author="' + esc(hAuthorId) + '">' +
+        avatarInner(hAuthorId) +
+      '</div>' +
+      '<div class="post-body">' +
+        '<div class="post-header">' +
+          '<span class="post-name" data-goto-author="' + esc(hAuthorId) + '">' + esc(hName) + '</span>' +
+          (hAuthorId === "ai" ? SVG.verified : "") +
+          '<span class="post-handle">' + esc(hHandle) + '</span>' +
+          '<span class="post-dot">·</span>' +
+          '<span class="post-time">' + esc(relTime(hTime)) + '</span>' +
+        '</div>' +
+        (bodyText ? '<div class="post-text">' + esc(bodyText) + '</div>' : '') +
+        mediaHtml +
+        postActionsHTML(p) +
+        commentsBoxHTML(p) +
+      '</div>' +
+    '</article>';
+}
+
+/* 【性能·局部更新】把操作栏单独抽出来。
+   点赞/转发/收藏这类操作**不再整页重绘**（旧实现会 innerHTML 重建整个首页，
+   导致十几张图片全部重新解码，体感就是"按一下卡一下"），
+   而是用这个片段只替换那一条帖子的 .post-actions。 */
+function postActionsHTML(p) {
+  var liked = (p.likedBy || []).indexOf(S.me) >= 0;
+  var reposted = (p.retweetedBy || []).indexOf(S.me) >= 0;
+  var bookmarked = (p.bookmarkedBy || []).indexOf(S.me) >= 0;
+  var cCount = Array.isArray(p.comments) ? p.comments.length : (Number(p.commentCount) || 0);
+  var cOpen = S.openComments && S.openComments[p.id];
+  var isMine = p.authorId === S.me;
+  return '<div class="post-actions">' +
+    '<button class="action-btn reply' + (cOpen ? ' active' : '') + '" data-act="comment" data-id="' + esc(p.id) + '">' + SVG.reply + '<span>' + (cCount ? fmtCount(cCount) : '评论') + '</span></button>' +
+    '<button class="action-btn repost' + (reposted ? ' reposted' : '') + '" data-act="repost" data-id="' + esc(p.id) + '">' + SVG.repost + '<span>' + fmtCount(p.retweetCount) + '</span></button>' +
+    '<button class="action-btn like' + (liked ? ' liked' : '') + '" data-act="like" data-id="' + esc(p.id) + '">' + (liked ? SVG.heartFilled : SVG.heart) + '<span>' + fmtCount(p.likeCount) + '</span></button>' +
+    '<button class="action-btn' + (bookmarked ? ' bookmarked' : '') + '" data-act="bookmark" data-id="' + esc(p.id) + '">' + (bookmarked ? SVG.bookmarkFilled : SVG.bookmark) + '</button>' +
+    (isMine ? '<button class="action-btn" data-act="delete" data-id="' + esc(p.id) + '">' + SVG.close + '</button>' : '') +
+  '</div>';
+}
+
+/* 【性能·局部更新】只替换某一条帖子的操作栏，不动其它 DOM。
+   返回 true 表示确实更新了。 */
+function patchPostActions(p) {
+  if (!p || !p.id) return false;
+  var art = document.querySelector('article[data-post="' + cssAttrEsc(p.id) + '"]');
+  if (!art) return false;
+  var old = art.querySelector(".post-actions");
+  if (!old) return false;
+  var tmp = document.createElement("div");
+  tmp.innerHTML = postActionsHTML(p);
+  var neu = tmp.firstChild;
+  if (!neu) return false;
+  old.parentNode.replaceChild(neu, old);
+  return true;
+}
+
+/* 【性能·局部更新】按 id 找帖子对象（用于原地改 likedBy 等字段） */
+function postById(id) {
+  if (!id) return null;
+  var list = S.posts || [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && String(list[i].id) === String(id)) return list[i];
+  }
+  return null;
+}
+
+/* 属性选择器里用的转义（只处理引号与反斜杠） */
+function cssAttrEsc(s) {
+  return String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/* ---------------- 渲染：主页（官方布局：无内嵌发帖框，发帖走右下角悬浮按钮） ---------------- */
+function feedAccountBar() {
+  var mine = S.accounts[S.me] || { displayName: "You", handle: "@you" };
+  var other = S.accounts[S.me === "ai" ? "user" : "ai"] || {};
+  var otherId = S.me === "ai" ? "user" : "ai";
+  return '' +
+    '<div class="feed-account-bar">' +
+      '<button class="pill-account" data-goto-author="' + esc(S.me) + '">' +
+        '<span class="avatar" style="' + avatarStyle(S.me) + '">' + avatarInner(S.me) + '</span>' +
+        '<span>' + esc(mine.displayName || "You") + '</span>' +
+      '</button>' +
+      '<span>当前浏览</span>' +
+      '<button class="pill-account" data-goto-author="' + esc(otherId) + '">' +
+        '<span class="avatar" style="' + avatarStyle(otherId) + '">' + avatarInner(otherId) + '</span>' +
+        '<span>查看 ' + esc(other.displayName || otherId) + '</span>' +
+      '</button>' +
+    '</div>';
+}
+
+function renderHome() {
+  S.view = "list";
+  elTopTitle.textContent = "主页";
+  elScroll.classList.remove("chat-mode");
+  var html = feedAccountBar() +
+    '<div id="feedList">' +
+      (S.posts.length ? S.posts.map(postHTML).join('') : '<div class="empty"><div class="big">🕊️</div>还没有帖子<br/>点右下角按钮发一条</div>') +
+    '</div>';
+
+  elScroll.innerHTML = html;
+}
+
+/* ---------------- 全屏发帖编辑器（官方右下角蓝圈白加号入口） ---------------- */
+function openComposer() {
+  var mask = document.getElementById("modalMask");
+  var body = document.getElementById("sheetBody");
+  if (!mask || !body) return;
+  S.pendingMedia = [];
+  body.innerHTML = '' +
+    '<div class="compose-head">' +
+      '<button class="cancel" id="composeCancel">取消</button>' +
+      '<div class="grow"></div>' +
+      '<button class="post-btn" id="composePost" disabled>发帖</button>' +
+    '</div>' +
+    '<div class="compose-body">' +
+      '<div class="row">' +
+        '<div class="avatar sm" style="' + avatarStyle(S.me) + '">' + avatarInner(S.me) + '</div>' +
+        '<textarea id="composerInput" rows="3" placeholder="有什么新鲜事？" maxlength="280"></textarea>' +
+      '</div>' +
+      '<div id="mediaPreview" class="compose-media"></div>' +
+      '<div class="compose-tools">' +
+        '<button class="tool-btn" data-pick="image" aria-label="图片">' + SVG.image + '</button>' +
+        '<button class="tool-btn" data-pick="video" aria-label="视频">' + SVG.video + '</button>' +
+      '</div>' +
+    '</div>';
+  mask.classList.add("show");
+  mask.classList.add("compose");
+  renderMediaPreview();
+  bindComposer();
+  var input = document.getElementById("composerInput");
+  if (input) setTimeout(function () { try { input.focus(); } catch (e) { } }, 80);
+}
+
+function closeComposer() {
+  var mask = document.getElementById("modalMask");
+  var body = document.getElementById("sheetBody");
+  if (mask) { mask.classList.remove("show"); mask.classList.remove("compose"); }
+  if (body) body.innerHTML = "";
+  S.pendingMedia = [];
+}
+
+/* ---------------- 渲染：通知 ---------------- */
+/* 参考图布局：顶部分段 Tab（All / Mentions / Verified），
+   每行 = 左侧操作者圆头像 + 右侧「XX 赞了你的帖子 · 3d」+ 原文预览 */
+function ntfActorId(n) {
+  return String((n && (n.actorId || n.actor)) || "");
+}
+function ntfAvatarHTML(n) {
+  var id = ntfActorId(n);
+  var acc = S.accounts[id] || {};
+  var ini = esc(iniFor(acc.displayName || n.actorDisplayName, acc.handle || n.actorHandle));
+  var bg = esc(gradFor(id || "user"));
+  if (acc.avatarPath) {
+    return '<div class="ntf-avatar"><img src="' + esc(mediaUrl(acc.avatarPath)) + '" alt="" /></div>';
+  }
+  return '<div class="ntf-avatar" style="background:' + bg + '">' + ini + '</div>';
+}
+function ntfTextHTML(n) {
+  var who = esc(n.actorDisplayName || n.actorHandle || "");
+  var t = String(n.type || "");
+  var body = "";
+  if (t === "like") body = " 赞了你的帖子";
+  else if (t === "repost") body = " 转发了你的帖子";
+  else if (t === "follow") body = " 关注了你";
+  else if (t === "comment") body = " 评论了你的帖子";
+  else if (t === "mention") body = " 提及了你";
+  else if (t === "dm") body = " 给你发了私信";
+  else body = " " + esc(n.text || "提及了你");
+  var line = '<div class="ntf-line"><b>' + who + '</b>' + body + '</div>';
+  // 点赞/评论类显示被互动帖子的原文，私信类不重复显示（已经是消息内容）
+  var showText = n.text && (t === "like" || t === "repost" || t === "comment" || t === "mention");
+  if (showText) {
+    line += '<div class="ntf-line" style="color:var(--text-secondary);margin-top:2px;">' + esc(n.text) + '</div>';
+  }
+  return line;
+}
+function renderNotifications() {
+  S.view = "list";
+  elTopTitle.textContent = "通知";
+  var tab = S.ntfTab || "all";
+  var all = S.notifications || [];
+  var list = all;
+  if (tab === "mentions") {
+    list = all.filter(function (n) { return n.type === "mention" || n.type === "comment"; });
+  } else if (tab === "verified") {
+    // Verified：只显示来自「已认证」账号（AI 账号带认证标）的通知
+    list = all.filter(function (n) {
+      var id = ntfActorId(n);
+      return id === "ai";
+    });
+  }
+  var rows = list.map(function (n) {
+    var icon = n.type === "like" ? SVG.heart : (n.type === "repost" ? SVG.repost : (n.type === "follow" ? SVG.follow : (n.type === "comment" ? SVG.reply : SVG.dm)));
+    var color = n.type === "like" ? "#f91880" : (n.type === "repost" ? "#00ba7c" : (n.type === "follow" ? "#1d9bf0" : "#7856ff"));
+    return '' +
+      '<div class="ntf-row">' +
+        '<div class="ntf-icon" style="color:' + color + '">' + icon + '</div>' +
+        ntfAvatarHTML(n) +
+        '<div class="ntf-main">' +
+          ntfTextHTML(n) +
+          '<div class="ntf-time">' + esc(relTime(n.createdAtMs)) + '</div>' +
+        '</div>' +
+      '</div>';
+  }).join('');
+
+  var tabs = '' +
+    '<div class="ntf-tabs">' +
+      '<button class="ntf-tab' + (tab === "all" ? " active" : "") + '" data-ntf-tab="all">全部</button>' +
+      '<button class="ntf-tab' + (tab === "mentions" ? " active" : "") + '" data-ntf-tab="mentions">提及</button>' +
+      '<button class="ntf-tab' + (tab === "verified" ? " active" : "") + '" data-ntf-tab="verified">已认证</button>' +
+    '</div>';
+
+  elScroll.innerHTML = tabs + (rows
+    ? rows
+    : '<div class="empty"><div class="big">🔔</div>还没有通知<br/>有人互动时会出现在这里</div>');
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-ntf-tab]"), function (b) {
+    b.addEventListener("click", function () {
+      S.ntfTab = b.getAttribute("data-ntf-tab");
+      renderNotifications();
+    });
+  });
+}
+
+/* ---------------- 渲染：私信列表 ---------------- */
+function renderMessages() {
+  S.view = "list";
+  elTopTitle.textContent = "Chat";
+  // 原版 X 的顶栏：右侧是「All ⌄」筛选按钮
+  setDmFilterVisible(true);
+
+  var all = S.threads || [];
+  var q = String(S.dmQuery || "").trim().toLowerCase();
+  var list = all;
+  // 顶栏筛选：All / Unread
+  if (S.dmFilter === "unread") {
+    list = list.filter(function (t) { return (Number(t.unread) || 0) > 0; });
+  }
+  if (q) {
+    list = list.filter(function (t) {
+      var acc = t.peerAccount || {};
+      var hay = [(acc.displayName || ""), (acc.handle || ""), (t.peer || "")].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+
+  var rows = list.map(function (t) {
+    var acc = t.peerAccount || {};
+    var name = acc.displayName || acc.handle || t.peer;
+    var last = t.lastMessage || {};
+    var preview = last.text || (last.attachments && last.attachments.length ? "[媒体]" : "");
+    var unread = Number(t.unread) || 0;
+    return '' +
+      '<div class="dm-row" data-chat="' + esc(t.peer) + '">' +
+        '<div class="avatar" style="' + avatarStyle(t.peer) + '">' + avatarInner(t.peer) + '</div>' +
+        '<div class="dm-main">' +
+          '<div class="dm-top">' +
+            '<span class="dm-name">' + esc(name) + '</span>' +
+            (t.peer === "ai" ? SVG.verified : "") +
+            '<span class="dm-time">' + esc(relTime(last.createdAtMs || t.updatedAtMs)) + '</span>' +
+          '</div>' +
+          '<div class="dm-preview' + (unread ? ' unread' : '') + '">' + esc(preview) + '</div>' +
+        '</div>' +
+        (unread ? '<span class="dm-unread-dot"></span>' : '') +
+      '</div>';
+  }).join('');
+
+  // 原版 X：圆角搜索框
+  var searchBar = '<div class="dm-search">' + SVG.search +
+    '<input id="dmSearchInput" placeholder="Search" value="' + esc(S.dmQuery || "") + '" />' +
+    '</div>';
+
+  // 绑定对话卡片（保留原功能）
+  var boundChat = (S.chatLinks && S.chatLinks["ai"]) || "";
+  var bindCard = '<div class="dm-bind-card">' +
+    '<span class="dot' + (boundChat ? " on" : "") + '"></span>' +
+    '<span class="bind-label">' + (boundChat ? "AI 私信已接到 Operit 对话" : "AI 私信当前为本机模拟") + '</span>' +
+    '<select id="bindChatSelect"><option value="">未绑定（本机模拟）</option>' +
+      (S.chatOptions || []).map(function (c) {
+        // 【需求】统一显示「聊天标题(角色卡)」，与聊天页标题保持一致。
+        // 原来这里只取 characterCardName || title，两种信息互斥、只显示一个。
+        return '<option value="' + esc(c.id) + '"' + (c.id === boundChat ? " selected" : "") + '>' +
+          esc(chatOptionLabel(c)) + (c.isCurrent ? "（当前）" : '') + '</option>';
+      }).join("") +
+    '</select>' +
+    '<button class="pill-mini" id="bindChatRefresh">刷新</button>' +
+  '</div>';
+
+  elScroll.innerHTML =
+    searchBar +
+    bindCard +
+    (rows || '<div class="empty"><div class="big">💬</div>' +
+      (q ? '没有匹配「' + esc(S.dmQuery) + '」的会话' : '还没有私信<br/>输入 ai 或 user 开始聊天') + '</div>');
+
+  var sel = document.getElementById("bindChatSelect");
+  if (sel) {
+    sel.addEventListener("change", function () {
+      var cid = String(sel.value || "");
+      XBridge.callTool("x_social:bindChat", { peer: "ai", chatId: cid }).then(function (r) {
+        if (r && r.success === false) { showToast(r.message || "绑定失败"); return; }
+        S.chatLinks = S.chatLinks || {};
+        if (cid) S.chatLinks["ai"] = cid; else delete S.chatLinks["ai"];
+        showToast(cid ? "已绑定对话" : "已解除绑定");
+        renderMessages();
+      });
+    });
+  }
+  var refreshBind = document.getElementById("bindChatRefresh");
+  if (refreshBind) {
+    refreshBind.addEventListener("click", function () { loadChatOptions(true); });
+  }
+  var searchInput = document.getElementById("dmSearchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", function () {
+      S.dmQuery = String(searchInput.value || "");
+      // 只重绘列表部分，保留输入焦点
+      var pos = searchInput.selectionStart;
+      renderMessages();
+      var again = document.getElementById("dmSearchInput");
+      if (again) {
+        again.focus();
+        try { again.setSelectionRange(pos, pos); } catch (e) { }
+      }
+    });
+    // 输入 user / ai 直接回车开聊（原版 X 的搜索行为）
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      var v = String(searchInput.value || "").trim().toLowerCase().replace(/^@/, "");
+      if (v === "user" || v === "ai") {
+        S.dmQuery = "";
+        openChat(v);
+      } else {
+        showToast("输入 user 或 ai 可以直接开聊");
+      }
+    });
+  }
+}
+/* 读取 Operit 对话列表用于绑定 */
+function loadChatOptions(force) {
+  if (!force && S.chatOptionsReady) return;
+  XBridge.callTool("x_social:listChats", {}).then(function (r) {
+    /* 【修复·绑定下拉框空白】listChats 失败/超时时**保留**已有选项，
+       不要用空数组覆盖 —— 否则一次抖动就把下拉框清成只剩「未绑定」，
+       用户看着像绑定丢了，其实后台绑定一直都在。 */
+    if (r && r.success === false) {
+      S.chatOptionsReady = !!S.chatOptions.length;
+      return;
+    }
+    var d = (r && (r.data || r)) || {};
+    var chats = Array.isArray(d.chats) ? d.chats : null;
+    /* 返回 chats 缺失/非数组（宿主异常）时同样不清空 */
+    if (!chats) {
+      S.chatOptionsReady = !!S.chatOptions.length;
+      return;
+    }
+    S.chatOptions = chats;
+    S.chatOptionsReady = true;
+    if (S.view === "list" && S.tab === "messages") renderMessages();
+  }).catch(function () {
+    S.chatOptionsReady = !!S.chatOptions.length;
+  });
+  XBridge.callTool("x_social:chatLinks", {}).then(function (r) {
+    var d = (r && (r.data || r)) || {};
+    S.chatLinks = d.links || {};
+    S.chatLinkMeta = d.meta || {};
+    if (S.view === "list" && S.tab === "messages") renderMessages();
+    else if (S.view === "chat") renderChat(S.chatPeer, S.chatMessages || []);
+    /* 【v20】绑定信息到位后，如果正停在 AI 聊天页，立刻补同步一次
+       对话里已生成的 AI 回复（只读，不发消息）。 */
+    if (S.view === "chat" && S.chatPeer === "ai") {
+      var b2 = (S.chatLinks && S.chatLinks["ai"]) || "";
+      /* 【修复】带上当前竞态令牌，避免旧回调把数据写进已切换的会话 */
+      if (b2) syncAiRepliesFromChat("ai", b2, S.chatToken);
+    }
+  });
+}
+
+/* ---------------- 渲染：私信会话 ---------------- */
+/* 清理对话原文里的思考过程/工具调用等内部标签，取出可读正文 */
+function cleanChatText(raw) {
+  var t = String(raw == null ? "" : raw);
+  t = t.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  t = t.replace(/<think[\s\S]*$/gi, "");
+  t = t.replace(/<tool>[\s\S]*?<\/tool>/gi, "");
+  t = t.replace(/<tool[\s\S]*$/gi, "");
+  t = t.replace(/<attachment[^>]*>[\s\S]*?<\/attachment>/gi, "");
+  t = t.replace(/\n{3,}/g, "\n\n").trim();
+  return t;
+}
+/* 桥接回复轮询（v20）：改走 UI 帧直连对话。
+   旧版用后端 bridgeSend/bridgePoll（包运行时），绑定对话=当前会话时会撞上
+   宿主 busy 保护（"Previous message is still being processed"），消息根本没进
+   对话，AI 永远不回复。v20 改成：
+     ① UI 帧 chatSend   → 消息进入绑定对话
+     ② UI 帧 chatHistory → 读回 AI 的新回复
+     ③ 后端 aiReply      → 把回复落库到 X 私信
+   指纹用「最后一条助手消息的正文」做基准，只认发送之后新出现的回复。 */
+var chatPollTimer = null;
+function stopChatPoll() {
+  try { if (chatPollTimer) clearInterval(chatPollTimer); } catch (e) { }
+  chatPollTimer = null;
+}
+/* 从 UI 帧读回的历史里，取出「基准时间之后」最新的 AI 回复。
+ *  【修复】旧实现用「正文前 200 字符」当指纹来判断新旧，
+ *  但 AI 回复可能以相同开头（如都以「收到」起头），
+ *  导致新回复被误判成旧回复 → 收不到回复。
+ *  改用**时间戳**做基准，只要比基准晚产生的就是新回复。
+ *  【修复·对话记录混乱】同时把该回复的真实时间戳一起带出去，
+ *  让后端落库时用真实时间 → 气泡顺序 = 真实对话顺序。 */
+function pickFreshAiReply(history, beforeTs) {
+    var msgs = Array.isArray(history) ? history : [];
+    var fresh = null;
+    var freshTs = 0;
+    for (var i = msgs.length - 1; i >= 0; i--) {
+      var m = msgs[i] || {};
+      var sender = String(m.sender || "");
+      if (sender !== "ai" && sender !== "assistant" && sender !== "bot") continue;
+      var ts = Number(m.timestamp || 0);
+      // beforeTs 之前的都是旧回复，跳过
+      if (beforeTs > 0 && ts > 0 && ts <= beforeTs) continue;
+      var text = cleanChatText(m.content);
+      if (!text) continue;
+      if (fresh && ts && freshTs && ts <= freshTs) continue;
+      fresh = text;
+      freshTs = ts;
+    }
+    // 同时返回时间戳（供落库排序用）
+    return { text: fresh, ts: freshTs };
+  }
+/* ================================================================
+   【新增·社交事件桥接】发帖 / 评论 → 绑定对话 → AI 回复回填评论区
+   ----------------------------------------------------------------
+   用户需求：用户发帖子、给 AI 评论（含 AI 在评论区的评论），
+   都要通过桥接发给绑定聊天的对话。
+
+   分工（重要）：
+     后端 x_social:post / comment 落库后**只负责把事件送进对话**，
+       不发长轮询（工具返回后包运行时会回收，轮询必断）。
+     回复的读取与回填由这里（UI 帧）驱动：
+       ① chatHistory 取「发送前最后一条 AI 回复的时间戳」当基准
+       ② chatSend 把事件消息送进绑定对话
+       ③ 轮询 chatHistory，出现比基准新的 AI 回复 → aiReplyComment 落库
+   这条链路与私信桥接（pollBridgeReply）同构，已被验证可用。
+   ================================================================ */
+var socialPollTimer = null;
+function stopSocialPoll() {
+  try { if (socialPollTimer) clearTimeout(socialPollTimer); } catch (e) { }
+  socialPollTimer = null;
+}
+
+/* 把帖子附件里的图片拼成 markdown 图片链接（宿主解析后 AI 能直接看到照片） */
+function attachmentImageMarkdown(post, limit) {
+  var max = typeof limit === "number" ? limit : 4;
+  var atts = (post && post.attachments) || [];
+  var lines = [];
+  var n = 0;
+  for (var i = 0; i < atts.length && n < max; i++) {
+    var a = atts[i] || {};
+    if (a.type !== "image") continue;
+    var p = String(a.path || "");
+    if (!p) continue;
+    var uri = (p.indexOf("://") >= 0) ? p : ("file://" + p);
+    lines.push("图片" + (n + 1) + "：![帖子图片" + (n + 1) + "](" + uri + ")");
+    n++;
+  }
+  return lines;
+}
+
+/* 生成发往对话的事件文案（与后端 formatSocialEvent 保持一致的语义） */
+function buildSocialEventText(kind, post, comment) {
+  var lines = [];
+  var pText = (post && post.text) || "";
+  var pAuthor = (post && (post.authorDisplayName || post.authorHandle)) || "";
+  if (kind === "post") {
+    lines.push("【X 平台 · 新帖子】");
+    lines.push("发帖人：" + pAuthor + (post.authorHandle ? "（" + post.authorHandle + "）" : ""));
+    lines.push("帖子内容：" + (pText || "（无正文）"));
+    var atts = (post && post.attachments) || [];
+    if (atts.length) {
+      lines.push("附带媒体：" + atts.length + " 个（" +
+        atts.map(function (a) { return a.type === "video" ? "视频" : "图片"; }).join("、") + "）");
+    }
+    /* 【图片通道】宿主用特殊的 link 标签（type=image）承载多模态图片，
+       标签由 describePostImages 工具注册后追加在文案末尾。 */
+    lines.push("帖子ID：" + post.id);
+    lines.push("如果你想回应这条帖子，请调用 x_social:comment 工具来发布评论");
+    lines.push("（postId=" + post.id + "，author=\"ai\"，text=你的评论正文）。");
+    lines.push("只发布你真正想说的话；如果你认为无需回应，可以不调用该工具。");
+  } else if (kind === "user_comment") {
+    lines.push("【X 平台 · 用户评论】");
+    lines.push("评论人：" + ((comment && (comment.authorDisplayName || comment.authorHandle)) || "用户"));
+    lines.push("评论内容：" + ((comment && comment.text) || ""));
+    lines.push("所在帖子（作者 " + pAuthor + "）：" + pText.slice(0, 200));
+    lines.push("帖子ID：" + post.id);
+    lines.push("如果你想回应这条评论，请调用 x_social:comment 工具来发布评论");
+    lines.push("（postId=" + post.id + "，author=\"ai\"，text=你的评论正文）。");
+    lines.push("只发布你真正想说的话；如果你认为无需回应，可以不调用该工具。");
+  } else {
+    lines.push("【X 平台 · AI 评论】");
+    lines.push("评论者：" + ((comment && (comment.authorDisplayName || comment.authorHandle)) || ""));
+    lines.push("评论内容：" + ((comment && comment.text) || ""));
+    lines.push("所在帖子（作者 " + pAuthor + "）：" + pText.slice(0, 200));
+    lines.push("帖子ID：" + post.id);
+    lines.push("这条评论来自 AI 自己（可能是你之前在别处的回复），此处仅作记录。");
+    lines.push("**不需要**对此再回复 —— 回复自己的话没有意义，还可能造成循环。");
+  }
+  return lines.join("\n");
+}
+
+/* 主流程：把社交事件送进绑定对话。
+   【重要·设计修正】只投递事件，**不自动回填** AI 的回复。
+     AI 自己决定要不要回、回什么 → 用 x_social:comment 工具发布 → 前端只负责刷新显示。
+   opts.queueItem: 若来自后端队列（AI 通过工具调用发的帖子/评论），
+                 带上它以便投递成功后 socialBridgeAck 清队列 + 打「待回复窗口」。
+   返回 Promise，resolve 时表示「事件已送出」。 */
+function bridgeSocialEvent(kind, post, comment, opts) {
+  opts = opts || {};
+  if (!post || !post.id) return Promise.resolve({ ok: false, reason: "no post" });
+  var links = S.chatLinks || {};
+  var chatId = String(links["ai"] || "");
+  if (!chatId) {
+    /* 没绑定对话 → 静默跳过，不影响发帖/评论本身 */
+    /* 【修复·可见反馈】原来这里直接 return，事件被静默丢弃，
+       用户只看到「AI 收不到」，完全不知道是没绑定还是发送失败。
+       现在弹一个提示，让人一眼看出问题出在哪。 */
+    showToast("未绑定对话，事件未送达 AI（请在「消息」页绑定）");
+    return Promise.resolve({ ok: false, reason: "未绑定对话" });
+  }
+  var text = buildSocialEventText(kind, post, comment);
+  /* 【带图发帖】把图片行追加到文案末尾。
+     describePostImages 现在返回的是宿主多模态图片标签（照片本体），
+     注册失败时它会自动降级为文字描述，这里两种都能直接拼。 */
+  var imgLines = (opts && opts.imageLines) || (opts && opts.imageDescLines) || [];
+  if (imgLines.length) {
+    text = text + "\n" + imgLines.join("\n");
+  }
+  return XBridge.chatHistory(chatId, 6).then(function (hr) {
+    var beforeTs = 0;
+    try {
+      var hd = (hr && hr.data) || {};
+      var hmsgs = Array.isArray(hd.messages) ? hd.messages : [];
+      for (var i = hmsgs.length - 1; i >= 0; i--) {
+        var hm = hmsgs[i] || {};
+        var hs = String(hm.sender || "");
+        if (hs !== "ai" && hs !== "assistant" && hs !== "bot") continue;
+        beforeTs = Number(hm.timestamp || 0);
+        break;
+      }
+    } catch (e) { }
+    return XBridge.chatSend(chatId, text).then(function (sr) {
+      if (sr && sr.success === false) {
+        /* 【修复·可见反馈】发送失败原来也是静默的，只体现在「AI 没回话」上。 */
+        showToast("事件发送失败：" + (sr.message || "未知原因"));
+        return { ok: false, reason: sr.message || "发送失败" };
+      }
+      /* 投递成功 → 清队列 + 给该帖打「待回复窗口」，
+         这样 AI 接下来针对这条帖发出的评论不会再触发新一轮桥接。 */
+      if (opts.queueItem && opts.queueItem.id) {
+        XBridge.callTool("x_social:socialBridgeAck", {
+          ids: [String(opts.queueItem.id)],
+          postIds: [String(post.id)]
+        }).catch(function () { });
+      }
+      pollSocialReply(chatId, post.id, beforeTs);
+      return { ok: true, chatId: chatId, beforeTs: beforeTs };
+    });
+  }).catch(function (e) {
+    return { ok: false, reason: String((e && e.message) || e) };
+  });
+}
+
+/* 轮询评论区，等 AI **自己用 x_social:comment 工具**发出评论后刷新 UI。
+   【重要·设计修正】旧版会把 AI 在对话里的整条回复自动回填成评论，
+   结果把 AI 的工作稿（推理文字、<link> 标签等）也灌进了评论区。
+   现在改成：桥接只投递事件 → AI 自己决定要不要回、回什么 →
+   通过 x_social:comment 工具落库 → 这里只负责把新评论显示出来。 */
+function pollSocialReply(chatId, postId, beforeTs) {
+  stopSocialPoll();
+  var tries = 0;
+  var MAX_TRIES = 90;           // 90 × 2s ≈ 3 分钟
+  var lastSig = "";
+  function tick() {
+    tries++;
+    if (tries > MAX_TRIES) { stopSocialPoll(); return; }
+    XBridge.callTool("x_social:listComments", { postId: postId }).then(function (lr) {
+      if (!lr || lr.success === false) { schedule(); return; }
+      var ld = (lr && (lr.data || lr)) || {};
+      var list = Array.isArray(ld.comments) ? ld.comments : [];
+      // 用「评论条数 + 最后一条的 id」当签名，有变化才重绘
+      var last = list.length ? (list[list.length - 1] || {}) : {};
+      var sig = list.length + ":" + (last.id || "");
+      if (sig !== lastSig) {
+        lastSig = sig;
+        // 首页：更新该帖的评论数与评论列表
+        for (var i = 0; i < S.posts.length; i++) {
+          if (S.posts[i].id === postId) {
+            S.posts[i].comments = list;
+            S.posts[i].commentCount = list.length;
+            break;
+          }
+        }
+        renderHome();
+        // 详情页：同步刷新回复时间线
+        if (typeof PD !== "undefined" && PD.postId && String(PD.postId) === String(postId)) {
+          PD.comments = list;
+          if (PD.post) { PD.post.comments = list; PD.post.commentCount = list.length; }
+          PD.loading = false;
+          pdRender();
+        }
+      }
+      schedule();
+    }).catch(function () { schedule(); });
+  }
+  function schedule() {
+    if (tries >= MAX_TRIES) return;
+    try { socialPollTimer = setTimeout(tick, 2000); } catch (e) { }
+  }
+  schedule();
+}
+
+/* ================================================================
+   【社交事件桥接·队列泵】AI 侧事件的投递
+   ----------------------------------------------------------------
+   ⚠ 重要：AI 自己发的帖子/评论**不再入队**（后端已改），
+      所以这个队列里理论上只有「用户侧事件」的备份。
+      这里再做一道前端防线：万一有历史残留的 ai_post / ai_comment，
+      一律跳过 —— AI 收到自己的回声是纯噪音 + 回环源。
+   ================================================================ */
+var socialQueueTimer = null;
+var socialQueueBusy = false;
+function stopSocialQueuePump() {
+  try { if (socialQueueTimer) clearTimeout(socialQueueTimer); } catch (e) { }
+  socialQueueTimer = null;
+}
+function pumpSocialQueue() {
+  stopSocialQueuePump();
+  if (socialQueueBusy) return;
+  var chatId = String((S.chatLinks || {})["ai"] || "");
+  if (!chatId) { schedulePump(); return; }
+  socialQueueBusy = true;
+  XBridge.callTool("x_social:socialBridgeQueue", { limit: 10 }).then(function (qr) {
+    if (!qr || qr.success === false) { socialQueueBusy = false; schedulePump(); return; }
+    var qd = (qr && (qr.data || qr)) || {};
+    var items = Array.isArray(qd.items) ? qd.items : [];
+    if (!items.length) { socialQueueBusy = false; schedulePump(); return; }
+    // 逐条投递（串行，避免宿主 busy）
+    var idx = 0;
+    function next() {
+      if (idx >= items.length) { socialQueueBusy = false; schedulePump(); return; }
+      var it = items[idx++];
+      var kind = String(it.kind || "");
+      var postId = String(it.postId || "");
+      var commentId = String(it.commentId || "");
+      if (!postId) { next(); return; }
+      /* 【防回环·前端第二道防线】AI 自己发的事件一律不投递，
+         直接 ack 清掉（AI 收到自己的回声没有新信息，还会引发回环）。 */
+      if (kind === "ai_post" || kind === "ai_comment") {
+        XBridge.callTool("x_social:socialBridgeAck", {
+          ids: [String(it.id)]
+        }).catch(function () { });
+        next();
+        return;
+      }
+      // 取该帖 + （评论事件的）评论内容
+      XBridge.callTool("x_social:listComments", { postId: postId }).then(function (lr) {
+        var ld = (lr && (lr.data || lr)) || {};
+        var clist = Array.isArray(ld.comments) ? ld.comments : [];
+        var cmt = null;
+        if (commentId) {
+          for (var i = 0; i < clist.length; i++) {
+            if (String(clist[i].id) === commentId) { cmt = clist[i]; break; }
+          }
+        }
+        var post = { id: postId, text: "", comments: clist };
+        // 用已有的帖子数据补全作者/正文
+        for (var j = 0; j < (S.posts || []).length; j++) {
+          if (String(S.posts[j].id) === postId) { post = S.posts[j]; break; }
+        }
+        var kind2 = (kind === "ai_post" || kind === "ai_comment") ? null : kind;
+        if (!kind2) { next(); return; }
+        bridgeSocialEvent(kind2, post, cmt, { queueItem: it }).then(function (res) {
+          if (!res || !res.ok) {
+            // 投递失败（如宿主忙）→ 不 ack，下一轮再试
+            socialQueueBusy = false;
+            schedulePump();
+            return;
+          }
+          next();
+        });
+      }).catch(function () { next(); });
+    }
+    next();
+  }).catch(function () { socialQueueBusy = false; schedulePump(); });
+}
+function schedulePump() {
+  stopSocialQueuePump();
+  try { socialQueueTimer = setTimeout(pumpSocialQueue, 5000); } catch (e) { }
+}
+/* 页面加载后启动队列泵 */
+function startSocialQueuePump() {
+  stopSocialQueuePump();
+  try { socialQueueTimer = setTimeout(pumpSocialQueue, 3000); } catch (e) { }
+}
+
+function pollBridgeReply(peer, baselineCount, chatId, before) {
+  stopChatPoll();
+  var tries = 0;
+  /* 【修复·竞态】记录发起时的会话令牌；用户切走又切回同一会话时，
+     旧轮询若还在跑会把「上一次会话」的回复写进当前会话 → 记录混乱。 */
+  var pollToken = S.chatToken;
+  chatPollTimer = setInterval(function () {
+    tries++;
+    if (pollToken !== S.chatToken) { stopChatPoll(); return; }
+    if (S.view !== "chat" || S.chatPeer !== peer || tries > 120) { stopChatPoll(); return; }
+    XBridge.chatHistory(chatId, 20).then(function (r) {
+      if (!r || r.success === false) return;
+      var d = r.data || {};
+      var hist = (d && d.messages) ? d.messages : [];
+      var picked = pickFreshAiReply(hist, before);
+      if (!picked || !picked.text) return;
+      stopChatPoll();
+      // 落库到 X 私信（后端带去重 + 时间游标，重复调用不会重复写）
+      XBridge.callTool("x_social:aiReply", {
+        text: picked.text, peer: peer, actor: S.me,
+        sinceTs: before,
+        // 【修复·对话记录混乱】带上对话里的真实时间戳
+        sourceTs: picked.ts,
+        dedupe: "aichat:" + String(chatId) + ":" + picked.ts + ":" + picked.text.slice(0, 60)
+      }).then(function () {
+        return XBridge.callTool("x_social:dmMessages", { actor: S.me, peer: peer, limit: 200 });
+      }).then(function (rr) {
+        var dd = (rr && (rr.data || rr)) || {};
+        if (S.view === "chat" && S.chatPeer === peer) {
+          renderChat(peer, Array.isArray(dd.messages) ? dd.messages : []);
+        }
+      });
+    });
+  }, 2500);
+}
+/* 本机账号之间的私信：短轮询兜底，保证另一端消息也能出现 */
+function pollChatReply(peer, baselineCount) {
+  stopChatPoll();
+  var tries = 0;
+  var pollToken = S.chatToken;   /* 【修复·竞态】同 pollBridgeReply */
+  chatPollTimer = setInterval(function () {
+    tries++;
+    if (pollToken !== S.chatToken) { stopChatPoll(); return; }
+    if (S.view !== "chat" || S.chatPeer !== peer || tries > 20) { stopChatPoll(); return; }
+    XBridge.callTool("x_social:dmMessages", { actor: S.me, peer: peer, limit: 200 }).then(function (r) {
+      var d = (r && (r.data || r)) || {};
+      var msgs = Array.isArray(d.messages) ? d.messages : [];
+      if (msgs.length > baselineCount && S.view === "chat" && S.chatPeer === peer) {
+        stopChatPoll();
+        renderChat(peer, msgs);
+      }
+    });
+  }, 2500);
+}
+/* 把「对话标题 + 角色卡名」拼成统一的展示名。
+   例：早安问候(角色卡名)
+   规则：
+     - 标题是图片文件名（1000049019.jpg）→ 视为无标题，只用角色卡名
+     - 标题与角色卡名相同 → 不重复拼接
+     - 只有一个 → 直接用那个
+   chatTitleFor(聊天页标题) 和 chatOptionLabel(绑定下拉框) 共用本函数，
+   保证两处显示完全一致。 */
+function composeChatLabel(title, cardName) {
+  var t = String(title || "").trim();
+  var c = String(cardName || "").trim();
+  if (t && /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(t)) t = "";
+  if (t && c && t !== c) return t + "(" + c + ")";
+  if (t) return t;
+  if (c) return c;
+  return "";
+}
+
+/* 绑定下拉框里每一项的显示名 */
+function chatOptionLabel(c) {
+  if (!c) return "";
+  var label = composeChatLabel(c.title, c.characterCardName);
+  if (label) return label;
+  return String(c.id || "");
+}
+
+function chatTitleFor(peer) {
+  // 【需求】聊天标题显示「聊天标题(角色卡)」
+  //   例：早安问候(角色卡名)
+  // 取绑定对话的对话标题 + 角色卡名；没绑定就退回 X 账号名。
+  var acc = S.accounts[peer] || {};
+  var fallback = acc.displayName || acc.handle || peer;
+  var boundChatId = "";
+  if (peer === "ai") boundChatId = (S.chatLinks && S.chatLinks["ai"]) || "";
+  else if (peer === "user") boundChatId = (S.chatLinks && S.chatLinks["user"]) || "";
+  if (!boundChatId) return fallback;
+  var meta = (S.chatLinkMeta && S.chatLinkMeta[boundChatId]) || null;
+  // 没有 meta 时退回从 chatOptions 里找
+  if (!meta) {
+    var opt = null;
+    var opts = S.chatOptions || [];
+    for (var i = 0; i < opts.length; i++) {
+      if (String(opts[i].id) === String(boundChatId)) { opt = opts[i]; break; }
+    }
+    if (opt) {
+      meta = {
+        title: String(opt.title || ""),
+        characterCardName: String(opt.characterCardName || ""),
+        displayName: String(opt.characterCardName || opt.title || ""),
+      };
+    }
+  }
+  if (!meta) return fallback;
+  var label = composeChatLabel(meta.title, meta.characterCardName);
+  return label || fallback;
+}
+
+/* 合并两份消息列表（本地乐观气泡 + 服务端快照），按 id 去重。
+   *  【修复·用户消息不显示 / 消息重复】
+   *  - 服务端快照到达时会整批覆盖本地列表，导致「刚发出但快照里还没有」
+   *    的用户消息消失。
+   *  - 但本地乐观气泡没有真实 id，直接按 id 合并会和服务器那条重复成两条。
+   *
+   *  方案：
+   *   ① 有 id 的消息按 id 去重（服务端版本更完整，覆盖本地）
+   *   ② 没 id 的本地气泡，按「发送方 + 正文 + 时间接近(±2s)」去匹配服务端同一条
+   *   ③ 匹配不上的本地气泡保留（说明服务端确实还没有）
+   */
+function chatMsgKey(m) {
+    if (!m) return "";
+    var id = String(m.id || "");
+    if (id) return id;
+    var ts = Number(m.createdAtMs || 0);
+    return "__local__" + String(m.from || "") + "|" + String(m.text || "").slice(0, 80) + "|" + ts;
+  }
+/* 【修复·消息顺序错乱】稳定的消息排序。
+   旧实现：时间戳相同 → 用 id 字典序做 tie-break。
+   但 id 形如 dm_<时间36进制>_<随机后缀>，随机后缀导致**同一毫秒内的多条
+   消息顺序是随机的**（每次刷新都可能换一次顺序）→ 气泡左右穿插，
+   看起来就是「聊天记录乱跳」。
+   新实现：时间戳升序；时间戳完全相同 → 保持传入数组的原始顺序
+   （Array.prototype.sort 在现代引擎上是稳定排序），
+   原始顺序 = 服务端数组顺序（已按时间排好）→ 顺序稳定可预期。 */
+function sortChatStable(list) {
+  var arr = Array.isArray(list) ? list.slice() : [];
+  arr.sort(function (a, b) {
+    var ta = Number((a && a.createdAtMs) || 0);
+    var tb = Number((b && b.createdAtMs) || 0);
+    if (ta !== tb) return ta - tb;
+    return 0; // 相等 → 稳定排序，保持原顺序
+  });
+  return arr;
+}
+/* 【修复·消息归属判断】气泡左右靠 from/to 双向判定。
+   旧实现只看 m.from === S.me，遇到后端补全了 to 字段、
+   或 from 缺失/大小写不一致时就会判错边（自己的消息显示在左边）。
+   现在：
+     · to === 我        → 右侧（我的）
+     · from === 我      → 右侧（我的）
+     · from === 对端    → 左侧（对方的）
+     · to   === 对端    → 左侧（对方的）
+     · 兜底：from === 我 → 右侧 */
+function isMineMessage(m, peer) {
+  if (!m) return false;
+  var me = String(S.me || "");
+  var from = String(m.from || "");
+  var to = String(m.to || "");
+  /* from === 我  → 我发出去的 → 右侧
+     to   === 我  → 对方发给我的 → 左侧
+     from === 对端 → 左侧；to === 对端 → 右侧 */
+  if (from && from === me) return true;
+  if (to && to === me) return false;
+  if (peer && from === String(peer)) return false;
+  if (peer && to === String(peer)) return true;
+  /* 兜底：只有 from 时按 from 判；都没有 → 当对方的 */
+  return false;
+}
+/* 【修复·重复气泡】合并本地乐观气泡 + 服务端快照。
+   ① 服务端数组**自身**可能含重复 id（后端重复写入 / 多次快照叠加），
+      旧实现直接把整份 incoming 塞进结果 → 同一 id 出现两条气泡。
+      现在按 id 去重（保留第一条）。
+   ② 本地无 id 的乐观气泡按「from + 正文 + 时间接近」匹配服务端同一条，
+      但**同一条服务端消息只能被匹配掉一次**：
+      旧实现没有这个限制 → 连发两条相同内容时，第二条被误判成重复而消失。 */
+function mergeChatMessages(local, incoming) {
+  var incomingArr = Array.isArray(incoming) ? incoming : [];
+  var localArr = Array.isArray(local) ? local : [];
+  var result = [];
+  var byId = {};
+  var usedLocal = {};
+  var i, j, m, sid;
+
+  // ① 服务端消息（按 id 去重）
+  for (i = 0; i < incomingArr.length; i++) {
+    m = incomingArr[i];
+    if (!m) continue;
+    sid = String(m.id || "");
+    if (sid) {
+      if (byId[sid]) continue; // 重复 id → 跳过
+      byId[sid] = m;
+    }
+    result.push(m);
+  }
+  // ② 本地气泡
+  for (i = 0; i < localArr.length; i++) {
+    m = localArr[i];
+    if (!m) continue;
+    sid = String(m.id || "");
+    if (sid) {
+      if (byId[sid]) continue; // 服务端已有同 id → 已在上面积里
+      result.push(m);
+      continue;
+    }
+    var matched = false;
+    for (j = 0; j < incomingArr.length; j++) {
+      if (usedLocal[j]) continue;          // 这条服务端消息已被匹配过
+      var im = incomingArr[j] || {};
+      var imid = String(im.id || "");
+      if (imid && byId[imid] !== im) continue; // 被去重掉的重复项
+      if (String(im.from || "") !== String(m.from || "")) continue;
+      if (String(im.text || "") !== String(m.text || "")) continue;
+      var t1 = Number(im.createdAtMs || 0), t2 = Number(m.createdAtMs || 0);
+      if (t1 && t2 && Math.abs(t1 - t2) > 5000) continue;
+      usedLocal[j] = true;
+      matched = true;
+      break;
+    }
+    if (!matched) result.push(m); // 服务端还没有 → 保留本地气泡
+  }
+  return result;
+}
+
+/* 【新增】日期工具：用于聊天区的「今天 / 昨天 / M月D日」分隔线 */
+function dayKeyOf(ts) {
+  var d = new Date(Number(ts) || 0);
+  if (isNaN(d.getTime()) || !Number(ts)) return "";
+  return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+}
+function dayLabelOf(ts) {
+  var d = new Date(Number(ts) || 0);
+  if (isNaN(d.getTime()) || !Number(ts)) return "";
+  var now = new Date();
+  var dd = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var td = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  var diff = Math.round((dd - td) / 86400000);
+  if (diff === 0) return "今天";
+  if (diff === 1) return "昨天";
+  var hm = String(d.getHours());
+  var mm = String(d.getMinutes());
+  if (hm.length < 2) hm = "0" + hm;
+  if (mm.length < 2) mm = "0" + mm;
+  return (d.getMonth() + 1) + "月" + d.getDate() + "日 " + hm + ":" + mm;
+}
+function renderChat(peer, messages) {
+  S.view = "chat";
+  S.chatPeer = peer;
+  /* 【修复·用户消息不显示】
+     旧实现：S.chatMessages = messages 直接覆盖引用。
+     而 doSend 里是先 messages.push(本地乐观气泡) 再 renderChat(peer, messages)，
+     renderChat 又把 S.chatMessages 指向同一个数组 —— 看起来没问题。
+     但 openChat 的异步回调、以及 syncAiReplies 完成后都会用**服务端返回的
+     快照**再次 renderChat，本地乐观气泡（还没落库完成、或落库了但快照早于它）
+     就被整批覆盖掉 → 用户刚发的消息不见了。
+     现在改成：按 id 合并「服务端快照 + 本地乐观气泡」，去重且都保留。 */
+  var incoming = Array.isArray(messages) ? messages : [];
+  var local = Array.isArray(S.chatMessages) ? S.chatMessages : [];
+  var merged = mergeChatMessages(local, incoming);
+  S.chatMessages = merged;
+  elTopTitle.textContent = chatTitleFor(peer);
+  // 顶栏头像显示「对方」（跟 AI 聊天就显示 AI 的头像）
+  updateChatTopAvatar(peer);
+  // 进入会话详情后不再显示「All ⌄」筛选按钮
+  setDmFilterVisible(false);
+  elScroll.classList.add("chat-mode");
+
+  /* 【修复·顺序错乱】按时间戳升序渲染，保证气泡顺序 = 真实时间顺序。
+     服务端已排序，这里再兜一次底（本地乐观气泡用 Date.now()）。 */
+  var ordered = sortChatStable(merged);
+
+  /* ================================================================
+   【性能·长文本折叠】私信里 AI 的回复动辄几百上千字（还带 Markdown 标记），
+   一次性把 21 条长文本全量塞进 innerHTML，光是 HTML 字符串拼接 +
+   浏览器排版就要几百 ms —— 这是「打开聊天界面卡一下」的最大单一开销。
+   现在长消息默认只渲染前 220 字，点「展开」才显示全文。
+   折叠时正文里塞一份完整原文到 data-full，点击时切换显示。
+   ================================================================ */
+var BUBBLE_PREVIEW_LEN = 220;
+function bubbleHtml(m, peer) {
+  var mine = isMineMessage(m, peer);
+  var text = m.text ? String(m.text) : "";
+  var inner = '';
+  if (text) {
+    if (text.length > BUBBLE_PREVIEW_LEN) {
+      var preview = esc(text.slice(0, BUBBLE_PREVIEW_LEN));
+      inner += '<span class="bubble-text" data-collapsed="1" data-full="' + esc(text) + '">' + preview +
+        '<button class="bubble-more" data-expand="1">…展开</button></span>';
+    } else {
+      inner += '<span class="bubble-text">' + esc(text) + '</span>';
+    }
+  }
+  (m.attachments || []).forEach(function (a) {
+    var src = mediaUrl(a.path);
+    inner += a.type === "video"
+      ? '<video src="' + esc(src) + '" controls playsinline></video>'
+      : '<img src="' + esc(src) + '" data-img="' + esc(src) + '" />';
+  });
+  return '<div class="bubble-row ' + (mine ? "mine" : "theirs") + '">' +
+    '<div class="bubble">' + inner + '</div>' +
+    '</div>';
+}
+
+/* 【新增·日期分隔线】按天分组插入分隔条，分隔线的日期取气泡自己的时间戳，
+   与气泡顺序严格一致，不会出现「日期条插在错误位置」。
+   注意不能用 map(bubbleHtml) —— map 会把下标当第二个参数传给 bubbleHtml，
+   第二个参数现在是 peer，必须显式包一层。 */
+var bubbles = "";
+var lastDayKey = "";
+ordered.forEach(function (m) {
+  var ts = Number((m && m.createdAtMs) || 0);
+  var dk = ts ? dayKeyOf(ts) : "";
+  if (dk && dk !== lastDayKey) {
+    bubbles += '<div class="chat-day-sep"><span>' + esc(dayLabelOf(ts)) + '</span></div>';
+    lastDayKey = dk;
+  }
+  bubbles += bubbleHtml(m, peer);
+});
+
+  /* ================================================================
+     【性能·增量渲染】原来每次 renderChat 都把整个 elScroll.innerHTML 重建，
+     连带把输入框、发送按钮、图片按钮全部销毁再重建 + 重新绑事件。
+     消息一多（现在有 21 条，其中几条是长文本），这就是「打开聊天卡一下」的主因。
+     现在改成：
+       · 只在**第一次**进入会话时构建骨架（chatView / chatList / 输入区）
+       · 之后只替换 chatList 的内容（innerHTML 只动消息区）
+       · 输入框不再被销毁 → 打字不丢焦点、不掉光标
+     ================================================================ */
+  var chatList = document.getElementById("chatList");
+  if (!chatList) {
+    // 第一次：构建骨架
+    elScroll.innerHTML =
+      '<div id="chatView">' +
+        '<div id="chatBindTipHost"></div>' +
+        '<div class="chat-list" id="chatList"></div>' +
+        '<div class="chat-input-row">' +
+          '<button class="tool-btn" id="chatPick" style="width:36px;height:36px;">' + SVG.image + '</button>' +
+          '<textarea id="chatInput" rows="1" placeholder="发消息…"></textarea>' +
+          '<button class="send-btn" id="chatSend" style="height:36px;">发送</button>' +
+        '</div>' +
+      '</div>';
+    chatList = document.getElementById("chatList");
+    bindChatControls();
+  } else {
+    // 后续：只更新消息区，输入框保持不动
+    chatList.innerHTML = bubbles || '<div class="empty">还没有消息，打个招呼吧</div>';
+  }
+  if (chatList) chatList.scrollTop = chatList.scrollHeight;
+
+  // 绑定提示条单独更新（内容会随绑定状态变化）
+  var tipHost = document.getElementById("chatBindTipHost");
+  if (tipHost) {
+    var boundChatNow = (S.chatLinks && S.chatLinks[peer]) || "";
+    tipHost.innerHTML = peer === "ai"
+      ? '<div class="chat-bind-tip' + (boundChatNow ? " on" : "") + '">' +
+          (boundChatNow ? "已连接 Operit 对话，消息会转发给角色卡" : "未绑定对话：请在私信列表选择要桥接的对话") +
+        '</div>'
+      : '';
+  }
+}
+
+/* 聊天页的输入控件事件（只在首次构建骨架时绑定一次）
+   【重要】所有 handler 里的 peer 都从 S.chatPeer 动态取，
+   不能用闭包捕获的 peer —— 否则切换会话后，
+   输入框/发送按钮会被复用（不再重建），但事件还绑在旧会话上，
+   会把消息发到错误的会话。 */
+function bindChatControls() {
+  var input = document.getElementById("chatInput");
+  var send = document.getElementById("chatSend");
+  var pick = document.getElementById("chatPick");
+
+  function doSend() {
+    var peer = S.chatPeer || "ai";   // 动态取当前会话
+    var text = input ? String(input.value || "").trim() : "";
+    var media = S.pendingMedia.slice();
+    if (!text && !media.length) return;
+    if (send) send.disabled = true;
+    var params = { actor: S.me, peer: peer, text: text };
+    var imgs = [], vids = [], imgData = [], vidData = [];
+    media.forEach(function (m) {
+      if (m.data) {
+        if (m.type === "video") vidData.push({ data: m.data, name: m.name || "video.mp4" });
+        else imgData.push({ data: m.data, name: m.name || "image.jpg" });
+      } else if (m.path) {
+        if (m.type === "video") vids.push(m.path); else imgs.push(m.path);
+      }
+    });
+    if (imgs.length) params.imagePaths = imgs;
+    if (vids.length) params.videoPaths = vids;
+    if (imgData.length) params.imageData = imgData;
+    if (vidData.length) params.videoData = vidData;
+
+    XBridge.callTool("x_social:dmSend", params).then(function (r) {
+      if (send) send.disabled = false;
+      if (r && r.success === false) {
+        showToast(r.message || "发送失败");
+        return;
+      }
+      S.pendingMedia = [];
+      if (input) { input.value = ""; input.style.height = "auto"; }
+      /* 【修复·用户消息不显示 / 重复】
+         旧实现：messages.push(...) —— messages 是进入 renderChat 时传进来的**参数引用**，
+         而 renderChat 内部已经改成了 mergeChatMessages(local, incoming) 生成**新数组**，
+         S.chatMessages 指向新数组。此时 push 到旧 messages 上，S.chatMessages 根本看不到。
+         现在统一 push 到 S.chatMessages（真正的当前列表），并带 createdAtMs 供排序。
+
+         【修复·对话记录混乱·用户消息时间戳】
+         旧实现：本地气泡用 Date.now() 当时间戳，而服务端 dmSend 也用 Date.now()。
+         两者相差几十毫秒 → 后续合并时只能靠 ±2s 时间窗去匹配，
+         一旦网络/IO 抖动超过 2 秒，同一条消息就会**重复成两条**。
+         现在优先用服务端返回的 message（带真实 id + createdAtMs），
+         服务端没有返回时才退回本地 Date.now()。
+         有真实 id 就能走 mergeChatMessages 的 id 去重，重复问题彻底消失。 */
+      var serverMsg = (r && (r.data || r) && (r.data || r).message) || null;
+      var localMsg = serverMsg ? {
+        id: String(serverMsg.id || ""),
+        from: serverMsg.from || S.me,
+        text: serverMsg.text !== undefined ? serverMsg.text : text,
+        createdAtMs: Number(serverMsg.createdAtMs || Date.now()),
+        attachments: serverMsg.attachments || media.map(function (m) {
+          return { type: m.type, path: m.path, name: m.name };
+        })
+      } : {
+        id: "",
+        from: S.me,
+        text: text,
+        createdAtMs: Date.now(),
+        attachments: media.map(function (m) {
+          return { type: m.type, path: m.path, name: m.name };
+        })
+      };
+      S.chatMessages = mergeChatMessages(S.chatMessages, [localMsg]);
+      renderChat(peer, S.chatMessages);
+      var bound = (S.chatLinks && S.chatLinks[peer]) || "";
+      if (peer === "ai" && bound && text) {
+        showToast("已发送，角色正在回复…");
+        /* 桥接（v20）：走 UI 帧直连对话。
+           ① 先读一次历史，拿到「发送前最后一条 AI 回复的时间戳」作为基准
+           ② UI 帧 chatSend 把消息送进绑定对话（不受包运行时的 busy 保护限制）
+           ③ 开始轮询历史，AI 出现**新于基准**的回复后落库回 X 私信
+           【修复】基准从「正文前缀指纹」改成「时间戳」：
+           旧实现按前 200 字符比对，新旧回复开头相同就会被误判成旧回复，
+           导致「消息发出后收不到 AI 回复」。 */
+        XBridge.chatHistory(bound, 6).then(function (hr) {
+          var beforeTs = 0;
+          try {
+            var hd = (hr && hr.data) || {};
+            var hmsgs = Array.isArray(hd.messages) ? hd.messages : [];
+            for (var i = hmsgs.length - 1; i >= 0; i--) {
+              var hm = hmsgs[i] || {};
+              var hs = String(hm.sender || "");
+              if (hs !== "ai" && hs !== "assistant" && hs !== "bot") continue;
+              beforeTs = Number(hm.timestamp || 0);
+              break;
+            }
+          } catch (e) { }
+          return XBridge.chatSend(bound, text).then(function (sr) {
+            if (sr && sr.success === false) {
+              showToast("转发失败: " + (sr.message || ""));
+              return;
+            }
+            pollBridgeReply(peer, S.chatMessages.length, bound, beforeTs);
+          });
+        });
+      } else {
+        if (peer !== "ai") pollChatReply(peer, S.chatMessages.length);
+        showToast("已发送");
+      }
+    });
+  }
+
+  if (send) send.addEventListener("click", doSend);
+  if (input) {
+    input.addEventListener("input", function () {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 110) + "px";
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        doSend();
+      }
+    });
+  }
+  if (pick) {
+    pick.addEventListener("click", function () {
+      pickFromHost("image", true).then(function (r) {
+        if (r.files.length) {
+          r.files.forEach(function (f) { S.pendingMedia.push({ path: f.path, type: "image" }); });
+          showToast("已选择 " + r.files.length + " 个文件，点发送即可");
+          return;
+        }
+        pickViaInput("image").then(function (vr) {
+          var list = (vr && Array.isArray(vr.files)) ? vr.files : [];
+          if (list.length) {
+            list.forEach(function (f) {
+              S.pendingMedia.push({ path: "", data: f.data, name: f.name || "image.jpg", type: "image" });
+            });
+            /* 【修复·多图提示】把「超出上限被丢弃的张数」明确告诉用户，
+               而不是静默丢掉让用户以为全部选上了。 */
+            var dropped = Number(vr && vr.dropped) || 0;
+            showToast("已选择 " + list.length + " 张图片" +
+              (dropped > 0 ? "（另有 " + dropped + " 张超过 9 张上限未添加）" : "") +
+              "，点发送即可");
+            return;
+          }
+          var msg = (r && r.message) || (vr && vr.message) || "";
+          if (msg) showToast(msg);
+          askManualChatMedia();
+        });
+      });
+    });
+  }
+}
+/* 聊天里手动补媒体路径 */
+function askManualChatMedia() {
+  showPromptSheet("图片/视频路径", "/sdcard/...").then(function (p) {
+    if (!p) return;
+    var v = String(p).trim();
+    if (!v) return;
+    var isVid = /\.(mp4|mov|webm|mkv|avi)$/i.test(v);
+    S.pendingMedia.push({ path: v, type: isVid ? "video" : "image" });
+    showToast("已添加，点发送即可");
+  });
+}
+
+function openChat(peer) {
+  /* 【修复·会话切换错乱】① 自增竞态令牌，旧的异步回调全部作废
+     ② 立刻清空当前消息并渲染空壳，避免上一个会话的气泡残留 */
+  var myToken = ++S.chatToken;
+  stopChatPoll();
+  /* 【性能】进入聊天时暂停首页轮询（每 3 秒一次 status，
+     后端每次全量读 42KB state.json），避免和聊天加载抢 IO。 */
+  stopFeedPoller();
+  S.pendingMedia = [];
+  var prevPeer = S.chatPeer;
+  S.chatPeer = peer;
+  S.chatMessages = [];
+  /* 【性能·增量渲染】输入框现在会被复用（不再每次重建），
+     所以切换会话时必须手动清空，否则上一句草稿会带到新会话。 */
+  if (prevPeer !== peer) {
+    var inp = document.getElementById("chatInput");
+    if (inp) { inp.value = ""; inp.style.height = "auto"; }
+  }
+  var bb = document.getElementById("backBtn");
+  if (bb) bb.style.display = "";
+  // 立刻画出空壳（不等数据回来）—— 让界面马上响应，不至于「点一下卡半秒」
+  renderChat(peer, []);
+
+  /* 【性能】原来打开会话要连打 5~6 次工具：
+       dmRead + dmMessages + dmList + chatLinks + notifications + aiReplyCursor
+     每次都是「宿主 ↔ 包运行时」一次往返（几百 ms），叠起来就是明显的卡顿。
+     现在改成 1 次 chatBundle 聚合调用，一次拿全所有数据。
+     数据语义完全不变（合并了 markRead / 已读标记 / 绑定信息 / 游标）。 */
+  XBridge.callTool("x_social:chatBundle", {
+    actor: S.me, peer: peer, limit: 200,
+    markRead: true,
+    includeThreads: true,
+    includeNotifications: true,
+    includeChatLinks: true
+  }).then(function (r) {
+    /* 【修复】令牌校验：用户已切走就别再渲染，避免旧数据覆盖新会话 */
+    if (myToken !== S.chatToken) return;
+    if (!r || r.success === false) {
+      showToast((r && r.message) || "加载失败");
+      return;
+    }
+    var d = (r && (r.data || r)) || {};
+
+    // 账号资料
+    if (d.peerAccount) S.accounts[peer] = d.peerAccount;
+    if (d.accounts && typeof d.accounts === "object") {
+      for (var ak in d.accounts) {
+        if (Object.prototype.hasOwnProperty.call(d.accounts, ak)) {
+          S.accounts[ak] = d.accounts[ak];
+        }
+      }
+      updateMeAvatar();
+    }
+    // 会话列表（角标 + 私信列表页都要用）
+    if (Array.isArray(d.threads)) {
+      S.threads = d.threads;
+      updateBadges();
+    }
+    // 通知（角标）
+    if (Array.isArray(d.notifications)) {
+      S.notifications = d.notifications;
+      updateBadges();
+    }
+    // 对话绑定
+    if (d.links) S.chatLinks = d.links;
+    if (d.meta) S.chatLinkMeta = d.meta;
+    S.chatLinksLoaded = true;
+    /* 【修复·绑定下拉框空白】chatBundle 已经把全部对话的 meta 带回来了，
+       这里直接把它喂给下拉框 —— 不再依赖 listChats 那一次额外调用。
+       否则 listChats 抖动一次，下拉框就只剩「未绑定（本机模拟）」，
+       看起来像绑定丢了（其实后台绑定一直都在）。 */
+    if (d.meta && typeof d.meta === "object") {
+      var optsFromMeta = [];
+      for (var mk in d.meta) {
+        if (!Object.prototype.hasOwnProperty.call(d.meta, mk)) continue;
+        var mv = d.meta[mk] || {};
+        optsFromMeta.push({
+          id: String(mk),
+          title: String(mv.title || ""),
+          characterCardId: String(mv.characterCardId || ""),
+          characterCardName: String(mv.characterCardName || ""),
+          displayName: String(mv.displayName || ""),
+          isCurrent: !!mv.isCurrent
+        });
+      }
+      if (optsFromMeta.length && !S.chatOptions.length) {
+        S.chatOptions = optsFromMeta;
+        S.chatOptionsReady = true;
+      }
+    }
+
+    // 消息
+    renderChat(peer, Array.isArray(d.messages) ? d.messages : []);
+
+    /* 【v20】进入 AI 聊天时，从绑定对话里同步一次最新的 AI 回复。
+       【修复·只同步新回复】这里**不再**无条件灌入对话里的历史回复，
+       而是走 aiReplyCursor 游标：只有比游标更新的回复才会写进 X 私信。
+       否则每次切换会话都会把「切换前 AI 的回复」重新灌一遍，
+       导致私信里旧回复堆积、顺序错乱。
+       【性能】游标已经由 chatBundle 一并带回来了，不用再单独调一次工具。 */
+    if (peer === "ai") {
+      var boundNow = (S.chatLinks && S.chatLinks["ai"]) || "";
+      if (boundNow) syncAiRepliesFromChat(peer, boundNow, myToken, Number(d.cursor || 0));
+    }
+  }).catch(function () {
+    if (myToken !== S.chatToken) return;
+    showToast("加载失败");
+  });
+}
+
+/* 从绑定对话读回最近的 AI 回复，写入 X 私信（去重由后端 aiReply 保证）
+   *
+   * 【修复·旧回复刷屏 / 消息错乱】
+   * 旧实现：每次进入会话都把对话里最近 3 条 AI 回复**无条件**写进 X 私信。
+   * 后果 A：切换会话时，「切换前的 AI 回复」又被灌一遍 → 私信里旧回复堆积。
+   * 后果 B：这些回复的时间戳是**写入时刻**，不是回复产生时刻，
+   *         于是它们插在用户新消息旁边 → 气泡顺序错乱。
+   *
+   * 新实现：
+   *   ① 先取 aiReplyCursor 游标（= 已同步到的最新回复时间）
+   *   ② 只把「对话里时间戳 > 游标」的回复写进私信
+   *   ③ 写入时带上 sinceTs=游标，后端再挡一次（双保险）
+   *   ④ 整个过程带竞态令牌，切走就不写
+   */
+function syncAiRepliesFromChat(peer, chatId, token, knownCursor) {
+  /* 【性能】knownCursor 由 chatBundle 一并带回 → 省掉一次 aiReplyCursor 工具调用。
+     没传时才自己取一次。 */
+  var cursorPromise = (knownCursor !== undefined && knownCursor !== null)
+    ? Promise.resolve(Number(knownCursor || 0))
+    : XBridge.callTool("x_social:aiReplyCursor", { peer: peer, actor: S.me }).then(function (cr) {
+        var cd = (cr && (cr.data || cr)) || {};
+        return Number(cd.cursor || 0);
+      }).catch(function () { return 0; });
+
+  cursorPromise.then(function (sinceTs) {
+    if (token !== undefined && token !== S.chatToken) return;
+    return XBridge.chatHistory(chatId, 20).then(function (hr) {
+      if (token !== undefined && token !== S.chatToken) return;
+      if (!hr || hr.success === false) return;
+      var hd = (hr && hr.data) || {};
+      var msgs = Array.isArray(hd.messages) ? hd.messages : [];
+      if (!msgs.length) return;
+      // 从新到旧遍历，只取比游标更新的回复（最多 3 条，避免一次灌太多）
+      var picked = [];
+      for (var i = msgs.length - 1; i >= 0 && picked.length < 3; i--) {
+        var m = msgs[i] || {};
+        var sender = String(m.sender || "");
+        if (sender !== "ai" && sender !== "assistant" && sender !== "bot") continue;
+        var ts = Number(m.timestamp || 0);
+        if (sinceTs > 0 && ts > 0 && ts <= sinceTs) continue; // 旧回复，跳过
+        var text = cleanChatText(m.content);
+        if (!text) continue;
+        picked.push({ text: text, ts: ts });
+      }
+      if (!picked.length) return;
+      // 从旧到新写入，保证私信里顺序 = 回复产生顺序
+      picked.reverse();
+      var chain = Promise.resolve();
+      picked.forEach(function (it) {
+        chain = chain.then(function () {
+          if (token !== undefined && token !== S.chatToken) return;
+          return XBridge.callTool("x_social:aiReply", {
+            text: it.text, peer: peer, actor: S.me,
+            sinceTs: sinceTs,
+            // 【修复·对话记录混乱】把对话里的真实时间戳传下去，
+            // 后端用它当消息时间 → 气泡顺序 = 真实对话顺序，
+            // 而不是全部挤在「我打开聊天页的那一刻」。
+            sourceTs: it.ts,
+            dedupe: "aichat:" + String(chatId) + ":" + (it.ts || 0) + ":" + it.text.slice(0, 60)
+          });
+        });
+      });
+      chain.then(function () {
+        if (token !== undefined && token !== S.chatToken) return;
+        return XBridge.callTool("x_social:dmMessages", { actor: S.me, peer: peer, limit: 200 });
+      }).then(function (rr) {
+        if (token !== undefined && token !== S.chatToken) return;
+        if (S.view === "chat" && S.chatPeer === peer) {
+          var dd = (rr && (rr.data || rr)) || {};
+          renderChat(peer, Array.isArray(dd.messages) ? dd.messages : []);
+        }
+      });
+    });
+  }).catch(function () { });
+}
+
+/* ---------------- 渲染：个人主页（先出缓存，再静默刷新） ---------------- */
+function prefetchProfile(who) {
+  XBridge.callTool("x_social:profile", { who: who, limit: 60 }).then(function (r) {
+    var d = (r && (r.data || r)) || {};
+    if (!d.account) return;
+    S.profileCache = S.profileCache || {};
+    S.profileCache[who] = d;
+  });
+}
+function renderProfile(who) {
+  S.view = "profile";
+  S.profileWho = who || S.me;
+  elScroll.classList.remove("chat-mode");
+  var bb = document.getElementById("backBtn");
+  if (bb) bb.style.display = "";
+  var cacheKey = S.profileWho;
+  var cached = S.profileCache && S.profileCache[cacheKey];
+  if (cached) paintProfile(cached, true);
+  else elScroll.innerHTML = '<div class="loading-row">加载中…</div>';
+  elTopTitle.textContent = cached ? (cached.account.displayName || cached.account.handle || "") : "个人主页";
+
+  XBridge.callTool("x_social:profile", { who: S.profileWho, limit: 60 }).then(function (r) {
+    var d = (r && (r.data || r)) || {};
+    if (!d.account) {
+      if (!cached) elScroll.innerHTML = '<div class="empty">加载失败，请重试</div>';
+      return;
+    }
+    S.profileCache = S.profileCache || {};
+    S.profileCache[cacheKey] = d;
+    paintProfile(d, false);
+  });
+}
+
+function paintProfile(d, fromCache) {
+  var acc = d.account || {};
+  var posts = Array.isArray(d.posts) ? d.posts : [];
+  var following = Array.isArray(d.following) ? d.following : [];
+  var followers = Array.isArray(d.followers) ? d.followers : [];
+  var who = S.profileWho;
+  var name = acc.displayName || acc.handle || who;
+  var isMe = who === S.me;
+  var followsMe = following.indexOf(S.me) >= 0;
+
+  elTopTitle.textContent = name;
+
+  var html = '' +
+    '<div class="profile-head">' +
+      '<div class="profile-banner"></div>' +
+      '<div class="profile-body">' +
+        '<div class="profile-avatar-row">' +
+          '<div class="avatar lg" style="' + avatarStyle(who) + '">' + avatarInner(who) + '</div>' +
+          (isMe
+            ? '<button class="pill-btn" id="editProfileBtn">编辑资料</button>'
+            : (who === "ai"
+              // AI 账号：允许用户直接编辑 AI 的资料（AI 自己也可用 updateProfile 工具改）
+              ? '<button class="pill-btn" id="editProfileBtn">编辑 AI 资料</button>' +
+                '<button class="pill-btn primary" id="followBtn" data-follow="' + (followsMe ? "1" : "0") + '">' + (followsMe ? "正在关注" : "关注") + '</button>'
+              : '<button class="pill-btn primary" id="followBtn" data-follow="' + (followsMe ? "1" : "0") + '">' + (followsMe ? "正在关注" : "关注") + '</button>')) +
+        '</div>' +
+        '<div class="profile-name">' + esc(name) + (who === "ai" ? " " + SVG.verified : "") + '</div>' +
+        '<div class="profile-handle">' + esc(acc.handle || ("@" + who)) + '</div>' +
+        (acc.bio ? '<div class="profile-bio">' + esc(acc.bio) + '</div>' : '') +
+        '<div class="profile-meta">' +
+          '<span><b>' + following.length + '</b> 正在关注</span>' +
+          '<span><b>' + followers.length + '</b> 关注者</span>' +
+        '</div>' +
+        (isMe ? '' : '<div class="profile-actions">' +
+          '<button class="pill-btn primary" id="msgBtn" style="flex:1;">发私信</button>' +
+        '</div>') +
+      '</div>' +
+      '<div class="profile-tabs">' +
+        '<div class="profile-tab active">帖子</div>' +
+      '</div>' +
+    '</div>' +
+    '<div>' +
+      (posts.length ? posts.map(postHTML).join('') : '<div class="empty"><div class="big">📝</div>还没有发布帖子</div>') +
+    '</div>';
+
+  elScroll.innerHTML = html;
+
+  var fb = document.getElementById("followBtn");
+  if (fb) {
+    fb.addEventListener("click", function () {
+      var followingNow = fb.getAttribute("data-follow") === "1";
+      XBridge.callTool("x_social:follow", {
+        follower: S.me,
+        target: S.profileWho
+      }).then(function (rr) {
+        if (rr && rr.success === false) { showToast(rr.message || "操作失败"); return; }
+        showToast(followingNow ? "已取消关注" : "已关注");
+        S.profileCache = S.profileCache || {};
+        delete S.profileCache[S.profileWho];
+        renderProfile(S.profileWho);
+      });
+    });
+  }
+  var mb = document.getElementById("msgBtn");
+  if (mb) {
+    mb.addEventListener("click", function () { openChat(S.profileWho); });
+  }
+  var eb = document.getElementById("editProfileBtn");
+  if (eb) {
+    // 传 who，确保编辑的是当前查看的这个账号（可能是 AI）
+    eb.addEventListener("click", function () { openEditProfile(acc, who); });
+  }
+}
+
+function openEditProfile(acc, who) {
+  var target = String(who || (acc && acc.id) || S.me);
+  var colors = ["#1D9BF0", "#7856FF", "#F91880", "#00BA7C", "#FF7A00", "#536471"];
+  var curColor = acc.avatarColor || "#1D9BF0";
+  var isAi = target === "ai";
+  openSheet('' +
+    '<div class="sheet-title">编辑资料</div>' +
+    '<div class="sheet-sub">修改后立即生效' + (isAi ? '（正在编辑 AI 账号）' : '') + '</div>' +
+    '<div class="avatar-edit-row">' +
+      '<div class="avatar" id="epAvatar" style="' + (acc.avatarPath ? "background:#222" : "background:" + curColor) + '">' +
+        (acc.avatarPath ? '<img src="' + esc(mediaUrl(acc.avatarPath)) + '" />' : esc(iniFor(acc.displayName, acc.handle))) +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;">' +
+        '<button class="pill-mini" id="epPickAvatar">更换头像</button>' +
+        '<button class="pill-mini" id="epClearAvatar">清除头像</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="field" style="margin-top:14px;"><label>昵称</label><input id="epName" maxlength="40" value="' + esc(acc.displayName || "") + '" /></div>' +
+    '<div class="field"><label>用户名</label><input id="epHandle" maxlength="20" value="' + esc(String(acc.handle || "").replace(/^@+/, "")) + '" /></div>' +
+    '<div class="field"><label>简介</label><textarea id="epBio" maxlength="200">' + esc(acc.bio || "") + '</textarea></div>' +
+    '<div class="field"><label>头像底色</label><div class="swatches" id="epColors">' +
+      colors.map(function (c) {
+        return '<button class="swatch' + (c.toLowerCase() === String(curColor).toLowerCase() ? " on" : "") + '" data-color="' + c + '" style="background:' + c + '"></button>';
+      }).join("") +
+    '</div></div>' +
+    '<div class="sheet-row">' +
+      '<button class="btn-ghost" id="epCancel">取消</button>' +
+      '<button class="btn-solid" id="epSave">保存</button>' +
+    '</div>');
+
+  var pickedPath = acc.avatarPath || "";
+  var pickedColor = curColor;
+  var nameEl = document.getElementById("epName");
+  var handleEl = document.getElementById("epHandle");
+  var bioEl = document.getElementById("epBio");
+  var avatarEl = document.getElementById("epAvatar");
+
+  function refreshAvatarPreview() {
+    if (!avatarEl) return;
+    avatarEl.setAttribute("style", pickedPath ? "background:#222" : "background:" + pickedColor);
+    avatarEl.innerHTML = pickedPath ? '<img src="' + esc(mediaUrl(pickedPath)) + '" />' : esc(iniFor(nameEl ? nameEl.value : "", handleEl ? handleEl.value : ""));
+  }
+
+  var colorsBox = document.getElementById("epColors");
+  if (colorsBox) {
+    colorsBox.addEventListener("click", function (e) {
+      var t = e.target && e.target.closest ? e.target.closest("[data-color]") : null;
+      if (!t) return;
+      pickedColor = t.getAttribute("data-color");
+      Array.prototype.forEach.call(colorsBox.children, function (b) {
+        b.classList.toggle("on", b === t);
+      });
+      refreshAvatarPreview();
+    });
+  }
+
+  var pick = document.getElementById("epPickAvatar");
+  if (pick) {
+    pick.addEventListener("click", function () {
+      XBridge.pickMedia("image", false).then(function (r) {
+        if (r && !r.cancelled) {
+          var files = Array.isArray(r.files) ? r.files : [];
+          var f = files[0];
+          var p = f ? (typeof f === "string" ? f : (f.path || f.uri || f.filePath || "")) : "";
+          if (p) {
+            pickedPath = p;
+            refreshAvatarPreview();
+            return;
+          }
+        }
+        if (r && r.message) showToast(r.message);
+        var manual = null;
+        openSheetPathFallback();
+      });
+    });
+  }
+  function openSheetPathFallback() {
+    // 弹一个极简输入层，避免破坏底部弹层结构
+    var p = showPromptSheet("头像图片路径", "/sdcard/...");
+    if (!p) return;
+    p.then(function (val) {
+      if (!val) return;
+      pickedPath = String(val).trim();
+      // 重新打开编辑面板以刷新预览
+      openEditProfile(Object.assign({}, acc, { avatarPath: pickedPath, avatarColor: pickedColor }));
+    });
+  }
+  var clearBtn = document.getElementById("epClearAvatar");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", function () {
+      pickedPath = "";
+      refreshAvatarPreview();
+    });
+  }
+  if (nameEl) nameEl.addEventListener("input", refreshAvatarPreview);
+
+  var cancel = document.getElementById("epCancel");
+  if (cancel) cancel.addEventListener("click", closeSheet);
+
+  var save = document.getElementById("epSave");
+  if (save) {
+    save.addEventListener("click", function () {
+      save.disabled = true;
+      save.textContent = "保存中";
+      var payload = { who: target };
+      if (nameEl) payload.displayName = String(nameEl.value || "").trim();
+      if (handleEl) payload.handle = String(handleEl.value || "").trim();
+      if (bioEl) payload.bio = String(bioEl.value || "");
+      payload.avatarColor = pickedColor;
+      payload.avatarPath = pickedPath || "";
+      XBridge.callTool("x_social:updateProfile", payload).then(function (r) {
+        save.disabled = false;
+        save.textContent = "保存";
+        if (r && r.success === false) { showToast(r.message || "保存失败"); return; }
+        closeSheet();
+        showToast("资料已更新");
+        // 同步本地缓存，立刻反映新昵称/头像
+        if (r && r.data && r.data.account) S.accounts[target] = r.data.account;
+        if (target === S.me) updateMeAvatar();
+        else updateChatTopAvatar(S.chatPeer);
+        refreshFeed();
+        if (S.profileWho === target) renderProfile(target);
+      });
+    });
+  }
+}
+/* 通用确认弹层（替代 WebView 里不可靠的 confirm） */
+function askConfirm(title, onOk) {
+  openSheet('' +
+    '<div class="sheet-title">' + esc(title || "确认操作") + '</div>' +
+    '<div class="sheet-row" style="margin-top:16px;">' +
+      '<button class="btn-ghost" id="cfCancel">取消</button>' +
+      '<button class="btn-solid" id="cfOk">确定</button>' +
+    '</div>');
+  var c = document.getElementById("cfCancel");
+  var o = document.getElementById("cfOk");
+  if (c) c.addEventListener("click", closeSheet);
+  if (o) o.addEventListener("click", function () {
+    closeSheet();
+    try { onOk(); } catch (e) { }
+  });
+}
+/* 通用单行输入弹层：返回 Promise<string|null> */
+function showPromptSheet(title, placeholder) {
+  return new Promise(function (resolve) {
+    openSheet('' +
+      '<div class="sheet-title">' + esc(title) + '</div>' +
+      '<div class="field" style="margin-top:10px;"><input id="promptInput" placeholder="' + esc(placeholder || "") + '" /></div>' +
+      '<div class="sheet-row">' +
+        '<button class="btn-ghost" id="promptCancel">取消</button>' +
+        '<button class="btn-solid" id="promptOk">确定</button>' +
+      '</div>');
+    var input = document.getElementById("promptInput");
+    var done = function (v) { closeSheet(); resolve(v); };
+    var cancel = document.getElementById("promptCancel");
+    var ok = document.getElementById("promptOk");
+    if (cancel) cancel.addEventListener("click", function () { done(null); });
+    if (ok) ok.addEventListener("click", function () { done(input ? input.value : ""); });
+    if (input) setTimeout(function () { try { input.focus(); } catch (e) { } }, 60);
+  });
+}
+
+/* ---------------- 渲染：搜索 ---------------- */
+function renderSearch() {
+  S.view = "list";
+  elTopTitle.textContent = "搜索";
+  var trends = [
+    { meta: "科技 · 趋势", topic: "#DesignSystems", count: "12.4K 帖子" },
+    { meta: "趋势", topic: "#WebDev", count: "8,921 帖子" },
+    { meta: "音乐 · 趋势", topic: "#NowPlaying", count: "45.2K 帖子" },
+    { meta: "趋势", topic: "#OpenSource", count: "3,107 帖子" },
+    { meta: "游戏 · 趋势", topic: "#独立游戏", count: "6,480 帖子" }
+  ];
+  elScroll.innerHTML = '' +
+    '<div class="search-wrap">' +
+      '<div class="search-input-wrap">' +
+        '<svg viewBox="0 0 24 24"><path d="M10.25 3.75c-3.59 0-6.5 2.91-6.5 6.5s2.91 6.5 6.5 6.5c1.795 0 3.419-.726 4.596-1.904 1.178-1.177 1.904-2.801 1.904-4.596 0-3.59-2.91-6.5-6.5-6.5zm-8.5 6.5c0-4.694 3.806-8.5 8.5-8.5s8.5 3.806 8.5 8.5c0 1.986-.682 3.815-1.824 5.262l4.781 4.781-1.414 1.414-4.781-4.781c-1.447 1.142-3.276 1.824-5.262 1.824-4.694 0-8.5-3.806-8.5-8.5z"/></svg>' +
+        '<input id="searchInput" placeholder="搜索帖子、用户" />' +
+      '</div>' +
+    '</div>' +
+    '<div id="searchResults"></div>' +
+    '<div id="trendList">' +
+      trends.map(function (t) {
+        return '<div class="trend-row" data-trend="' + esc(t.topic) + '"><div class="trend-meta">' + esc(t.meta) + '</div>' +
+          '<div class="trend-topic">' + esc(t.topic) + '</div>' +
+          '<div class="trend-count">' + esc(t.count) + '</div></div>';
+      }).join('') +
+    '</div>';
+  var input = document.getElementById("searchInput");
+  if (!input) return;
+  function runSearch() {
+    var q = input.value.trim().toLowerCase();
+    var res = document.getElementById("searchResults");
+    var tr = document.getElementById("trendList");
+    if (!res) return;
+    if (!q) {
+      res.innerHTML = "";
+      if (tr) tr.style.display = "";
+      return;
+    }
+    if (tr) tr.style.display = "none";
+    // 先本地匹配（快），再补一次服务端全量搜索（准）
+    var localHits = S.posts.filter(function (p) {
+      return String(p.text || "").toLowerCase().indexOf(q) >= 0 ||
+        String(p.authorHandle || "").toLowerCase().indexOf(q) >= 0 ||
+        String(p.authorDisplayName || "").toLowerCase().indexOf(q) >= 0;
+    });
+    var users = Object.keys(S.accounts).map(function (k) { return S.accounts[k]; }).filter(function (a) {
+      return String(a.displayName || "").toLowerCase().indexOf(q) >= 0 ||
+        String(a.handle || "").toLowerCase().indexOf(q) >= 0;
+    });
+    function paint(posts, us) {
+      var html = "";
+      if (us.length) {
+        html += '<div class="sheet-sub" style="padding:10px 14px 4px;margin:0;">用户</div>';
+        html += us.map(function (a) {
+          return '<div class="user-row" data-goto-author="' + esc(a.id) + '">' +
+            '<div class="avatar" style="' + avatarStyle(a.id) + '">' + avatarInner(a.id) + '</div>' +
+            '<div class="user-main">' +
+              '<div class="user-name">' + esc(a.displayName || a.id) + (a.id === "ai" ? " " + SVG.verified : "") + '</div>' +
+              '<div class="user-handle">' + esc(a.handle || ("@" + a.id)) + '</div>' +
+            '</div></div>';
+        }).join("");
+      }
+      if (posts.length) {
+        html += (us.length ? '<div class="sheet-sub" style="padding:10px 14px 4px;margin:0;">帖子</div>' : "");
+        html += posts.map(postHTML).join("");
+      }
+      res.innerHTML = html || '<div class="empty">没有找到相关内容</div>';
+    }
+    paint(localHits, users);
+    // 服务端全量（覆盖本地未加载的历史帖子）
+    XBridge.callTool("x_social:search", { q: input.value.trim(), limit: 60 }).then(function (r) {
+      if (!r || r.success === false) return;
+      var d = (r.data || r) || {};
+      var posts = Array.isArray(d.posts) ? d.posts : [];
+      var us = Array.isArray(d.accounts) ? d.accounts : [];
+      if (!posts.length && !us.length) return;
+      us.forEach(function (a) { S.accounts[a.id] = a; });
+      paint(posts, us);
+    });
+  }
+  input.addEventListener("input", runSearch);
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); runSearch(); }
+  });
+}
+
+/* ---------------- 发帖 ---------------- */
+function renderMediaPreview() {
+  var box = document.getElementById("mediaPreview");
+  if (!box) return;
+  if (!S.pendingMedia.length) {
+    box.innerHTML = "";
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "flex";
+  box.innerHTML = S.pendingMedia.map(function (m, i) {
+    var src = m.data || mediaUrl(m.path);
+    return '<div class="media-chip">' +
+      (m.type === "video"
+        ? '<video src="' + esc(src) + '" muted playsinline></video>'
+        : '<img src="' + esc(src) + '" />') +
+      '<button class="rm" data-rm="' + i + '">×</button>' +
+      '</div>';
+  }).join('');
+}
+
+function bindComposer() {
+  var input = document.getElementById("composerInput");
+  var send = document.getElementById("composePost") || document.getElementById("sendBtn");
+  var cancel = document.getElementById("composeCancel");
+
+  function syncSend() {
+    if (!send) return;
+    var has = (input && input.value.trim().length > 0) || S.pendingMedia.length > 0;
+    send.disabled = !has;
+  }
+
+  if (input) {
+    input.addEventListener("input", function () {
+      syncSend();
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 180) + "px";
+    });
+    syncSend();
+  }
+  if (cancel) {
+    cancel.addEventListener("click", function () { closeComposer(); });
+  }
+  if (send) {
+    send.addEventListener("click", function () {
+      var text = input ? String(input.value || "").trim() : "";
+      var media = S.pendingMedia.slice();
+      if (!text && !media.length) return;
+      send.disabled = true;
+      send.textContent = "发送中";
+      var params = { author: S.me, text: text };
+      var imgs = [], vids = [], imgData = [], vidData = [];
+      media.forEach(function (m) {
+        if (m.data) {
+          if (m.type === "video") vidData.push({ data: m.data, name: m.name || "video.mp4" });
+          else imgData.push({ data: m.data, name: m.name || "image.jpg" });
+        } else if (m.path) {
+          if (m.type === "video") vids.push(m.path); else imgs.push(m.path);
+        }
+      });
+      if (imgs.length) params.imagePaths = imgs;
+      if (vids.length) params.videoPaths = vids;
+      if (imgData.length) params.imageData = imgData;
+      if (vidData.length) params.videoData = vidData;
+
+      XBridge.callTool("x_social:post", params).then(function (r) {
+        send.textContent = "发帖";
+        if (r && r.success === false) {
+          showToast(r.message || "发布失败");
+          syncSend();
+          return;
+        }
+        if (input) { input.value = ""; input.style.height = "auto"; }
+        S.pendingMedia = [];
+        renderMediaPreview();
+        showToast("已发布");
+        closeComposer();
+        refreshFeed();
+        /* ================================================================
+           【需求·发帖流程时序修正】
+           用户要求：「发布帖子成功后再提醒 AI」。
+           旧实现的两个问题：
+             ① 提醒 AI 的**回执**要等 AI 跑完整轮对话才弹出来
+                → 期间发送按钮一直卡在「发送中」，看起来像界面死了；
+             ② 桥接失败时弹「已发布，但未送达 AI」，同样被拖到很后面。
+           现在改成：
+             · 帖子落库成功 → 立刻关掉输入框、刷新列表、提示「已发布」；
+             · 提醒 AI 放到**后台**做（不阻塞任何 UI 交互）；
+             · 送达与否由后台静默处理，只在真失败时才提示。
+           ================================================================ */
+        var rd = (r && (r.data || r)) || {};
+        var newPost = rd.post || null;
+        if (newPost && newPost.id) {
+          /* 【带图发帖·照片内容一起送给 AI】
+             宿主有真正的多模态图片通道（link 标签 + 图片池）。
+             这里调 describePostImages 把照片注册进宿主图片池，
+             返回的标签追加到事件文案末尾 → 对话里的 AI 能直接看到照片本体。
+             注册失败时它会自动降级为文字描述，不影响发帖本身。 */
+          var atts = (newPost.attachments) || [];
+          var hasImg = false;
+          for (var ai2 = 0; ai2 < atts.length; ai2++) {
+            if (atts[ai2] && atts[ai2].type === "image") { hasImg = true; break; }
+          }
+          /* 后台提醒 AI：setTimeout(0) 脱离当前调用栈，
+             保证「已发布」的提示和界面刷新先落地，AI 的响应绝不拖住 UI。 */
+          setTimeout(function () {
+            if (hasImg) {
+              XBridge.callTool("x_social:describePostImages", { postId: newPost.id, limit: 3 })
+                .then(function (dr) {
+                  var dd = (dr && (dr.data || dr)) || {};
+                  var dlines = Array.isArray(dd.lines) ? dd.lines : [];
+                  bridgeSocialEvent("post", newPost, null, { imageLines: dlines });
+                })
+                .catch(function () {
+                  bridgeSocialEvent("post", newPost, null);
+                });
+            } else {
+              bridgeSocialEvent("post", newPost, null);
+            }
+          }, 0);
+        }
+      });
+    });
+  }
+}
+
+function handlePick(kind) {
+  var wantVideo = kind === "video";
+  var type = wantVideo ? "video" : "image";
+  function addPaths(files) {
+    var added = 0;
+    (files || []).forEach(function (f) {
+      var p = typeof f === "string" ? f : (f && f.path) || "";
+      if (!p) return;
+      S.pendingMedia.push({ path: p, type: type });
+      added++;
+    });
+    if (added) {
+      renderMediaPreview();
+      var send = document.getElementById("composePost") || document.getElementById("sendBtn");
+      if (send) send.disabled = false;
+      showToast("已添加 " + added + " 个文件");
+    }
+    return added;
+  }
+  function addBase64(list) {
+    (list || []).forEach(function (f) {
+      S.pendingMedia.push({
+        path: "",
+        data: f.data,
+        name: f.name || (wantVideo ? "video.mp4" : "image.jpg"),
+        type: type
+      });
+    });
+    if (list && list.length) {
+      renderMediaPreview();
+      var send = document.getElementById("composePost") || document.getElementById("sendBtn");
+      if (send) send.disabled = false;
+      showToast("已添加 " + list.length + " 个文件");
+    }
+  }
+  // 首选：宿主系统文件选择器（返回真实路径，工具端可直接复制进媒体库）
+  pickFromHost(type, true).then(function (r) {
+    if (r.files.length && addPaths(r.files)) return;
+    // 次选：WebView 原生 input（拿 base64）
+    return pickViaInput(kind).then(function (vr) {
+      var list = (vr && Array.isArray(vr.files)) ? vr.files : [];
+      if (list.length && addBase64(list)) return;
+      var msg = (r && r.message) || (vr && vr.message) || "";
+      if (msg) showToast(msg);
+      askManualPath(type);
+    });
+  });
+}
+/* 手动输入媒体路径（宿主文件选择器不可用时的兜底） */
+function askManualPath(kind) {
+  var isVid = kind === "video";
+  openSheet('' +
+    '<div class="sheet-title">手动添加' + (isVid ? "视频" : "图片") + '</div>' +
+    '<div class="sheet-sub">填入手机里的文件路径，例如 /sdcard/DCIM/Camera/a.jpg</div>' +
+    '<div class="field"><label>文件路径</label><input id="manualPath" placeholder="/sdcard/..." /></div>' +
+    '<div class="sheet-row">' +
+      '<button class="btn-ghost" id="manualCancel">取消</button>' +
+      '<button class="btn-solid" id="manualOk">添加</button>' +
+    '</div>');
+  var input = document.getElementById("manualPath");
+  var cancel = document.getElementById("manualCancel");
+  var ok = document.getElementById("manualOk");
+  if (cancel) cancel.addEventListener("click", closeSheet);
+  if (ok) ok.addEventListener("click", function () {
+    var p = input ? String(input.value || "").trim() : "";
+    if (!p) { showToast("请填写路径"); return; }
+    S.pendingMedia.push({ path: p, type: isVid ? "video" : "image" });
+    closeSheet();
+    renderMediaPreview();
+    var send = document.getElementById("composePost") || document.getElementById("sendBtn");
+    if (send) send.disabled = false;
+    showToast("已添加");
+  });
+}
+
+
+/* ================================================================
+   帖子二级详情页
+   ---------------------------------------------------------------
+   需求：点击推特帖子不再原地内联展开，而是打开一个全屏二级页面：
+     顶部：返回按钮 + 「作者 · 时间」
+     主体：作者/正文/话题、媒体（轮播，全部图片都显示，不再截断 4 张）、
+           引用推文、互动数据（转发 / 点赞 / 评论数）
+     底部：可展开的回复时间线 + 回复输入框
+   降级：帖子无效 → 提示「推文不存在或已被删除」；
+         加载失败 → 提示错误 + 重试按钮（仍展示本地已有内容）。
+   ================================================================ */
+var PD = {
+  postId: null,
+  post: null,
+  comments: [],
+  loading: false,
+  error: "",
+  expanded: true,
+  tried: false
+};
+
+function pdFindPost(id) {
+  var i, p, k;
+  var arr = S.posts || [];
+  for (i = 0; i < arr.length; i++) {
+    p = arr[i];
+    if (p && String(p.id) === String(id)) return p;
+  }
+  var cache = S.profileCache || {};
+  for (k in cache) {
+    if (!Object.prototype.hasOwnProperty.call(cache, k)) continue;
+    var d = cache[k] || {};
+    var list = Array.isArray(d.posts) ? d.posts : [];
+    for (i = 0; i < list.length; i++) {
+      p = list[i];
+      if (p && String(p.id) === String(id)) return p;
+    }
+  }
+  return null;
+}
+
+/* 正文富文本：转义后再把 #话题 / @提及 变成可点样式（先转义，安全） */
+function pdLinkify(text) {
+  var html = esc(String(text == null ? "" : text));
+  html = html.replace(/#([\w\u4e00-\u9fa5]{1,30})/g, '<span class="topic">#$1</span>');
+  html = html.replace(/@([A-Za-z0-9_]{1,20})/g, '<span class="topic">@$1</span>');
+  return html;
+}
+
+/* 媒体：单图直接展示；多图做横向轮播（每张都保留，不再 slice(0,4)） */
+function pdMediaHTML(atts) {
+  atts = Array.isArray(atts) ? atts : [];
+  if (!atts.length) return "";
+  var inner = "";
+  var dots = "";
+  var imgs = 0;
+  atts.forEach(function (a, i) {
+    var src = mediaUrl(a.path);
+    if (a.type === "video") {
+      inner += '<div class="pd-slide"><video src="' + esc(src) + '" controls playsinline preload="metadata"></video></div>';
+    } else {
+      imgs++;
+      inner += '<div class="pd-slide">' +
+        '<img src="' + esc(src) + '" data-img="' + esc(src) + '" alt="" />' +
+        (atts.length > 1 ? '<div class="pd-counter">' + (i + 1) + '/' + atts.length + '</div>' : '') +
+        '</div>';
+    }
+  });
+  if (imgs > 1) {
+    for (var i = 0; i < imgs; i++) dots += '<i class="' + (i === 0 ? 'on' : '') + '"></i>';
+    dots = '<div class="pd-dots">' + dots + '</div>';
+  }
+  return '<div class="pd-media" data-pd-media="1">' + inner + '</div>' + dots;
+}
+
+/* 引用推文 */
+function pdQuoteHTML(p) {
+  if (!p || !p.retweetOfPostId) return "";
+  var origin = pdFindPost(p.retweetOfPostId);
+  var who = origin
+    ? ((S.accounts[origin.authorId] || {}).displayName || origin.authorDisplayName || origin.authorHandle || "未知作者")
+    : "未知作者";
+  var txt = origin ? (origin.text || "") : (p.retweetOfText || "");
+  return '<div class="pd-quote">' +
+    '<div class="pd-quote-head">' + esc(who) + ' 的推文</div>' +
+    '<div class="pd-quote-text">' + pdLinkify(txt) + '</div>' +
+    '</div>';
+}
+
+/* 互动数据 */
+function pdStatsHTML(p, commentCount) {
+  var rt = Number(p.retweetCount) || 0;
+  var lk = Number(p.likeCount) || 0;
+  var cm = Number(commentCount) || 0;
+  return '<div class="pd-stats">' +
+    '<span><b>' + fmtCount(rt) + '</b> 转发</span>' +
+    '<span><b>' + fmtCount(lk) + '</b> 喜欢</span>' +
+    '<span><b>' + fmtCount(cm) + '</b> 评论</span>' +
+    '</div>';
+}
+
+/* 详情页正文 */
+function pdPostHTML(p, commentCount) {
+  var acc = S.accounts[p.authorId] || {};
+  var name = acc.displayName || p.authorDisplayName || acc.handle || p.authorHandle || "Unknown";
+  var handle = acc.handle || p.authorHandle || ("@" + (p.authorId || "user"));
+  var atts = Array.isArray(p.attachments) ? p.attachments : [];
+  var bodyText = p.text || "";
+  var repostMark = '';
+  /* 【修复·转推卡片】详情页同样显示原作者 */
+  var rt = rtOriginInfo(p);
+  var hName = name, hHandle = handle, hTime = p.createdAtMs, hAuthorId = p.authorId;
+  if (rt) {
+    repostMark = '<div class="pd-quote-head">' + SVG.repost + ' ' + esc(name) + ' 转推了</div>';
+    bodyText = rt.text;
+    if (rt.attachments.length) atts = rt.attachments;
+    hName = rt.name; hHandle = rt.handle; hTime = rt.time; hAuthorId = rt.authorId;
+  }
+  var liked2 = (p.likedBy || []).indexOf(S.me) >= 0;
+  var reposted2 = (p.retweetedBy || []).indexOf(S.me) >= 0;
+  var bookmarked2 = (p.bookmarkedBy || []).indexOf(S.me) >= 0;
+  var acts2 = '<div class="pd-actions">' +
+    '<button class="action-btn repost' + (reposted2 ? ' reposted' : '') + '" data-pd-act="repost" data-id="' + esc(p.id) + '">' + SVG.repost + '</button>' +
+    '<button class="action-btn like' + (liked2 ? ' liked' : '') + '" data-pd-act="like" data-id="' + esc(p.id) + '">' + (liked2 ? SVG.heartFilled : SVG.heart) + '</button>' +
+    '<button class="action-btn' + (bookmarked2 ? ' bookmarked' : '') + '" data-pd-act="bookmark" data-id="' + esc(p.id) + '">' + (bookmarked2 ? SVG.bookmarkFilled : SVG.bookmark) + '</button>' +
+    '</div>';
+  return '<div class="pd-post">' +
+    '<div class="pd-author">' +
+      '<div class="avatar" style="' + avatarStyle(hAuthorId) + '" data-goto-author="' + esc(hAuthorId) + '">' +
+        avatarInner(hAuthorId) +
+      '</div>' +
+      '<div class="pd-author-main">' +
+        '<div>' +
+          '<span class="pd-name" data-goto-author="' + esc(hAuthorId) + '">' + esc(hName) + '</span>' +
+          (hAuthorId === "ai" ? SVG.verified : '') +
+          '<span class="pd-handle">' + esc(hHandle) + '</span>' +
+          '<span class="pd-time">' + esc(relTime(hTime)) + '</span>' +
+        '</div>' +
+        (repostMark ? repostMark : '') +
+        (bodyText ? '<div class="pd-text">' + pdLinkify(bodyText) + '</div>' : '') +
+      '</div>' +
+    '</div>' +
+    pdMediaHTML(atts) +
+    (!rt ? pdQuoteHTML(p) : '') +
+    pdStatsHTML(p, commentCount) +
+    acts2 +
+    '</div>';
+}
+
+/* 详情页渲染 */
+function pdRender() {
+  var body = document.getElementById("pdBody");
+  var title = document.getElementById("pdTitle");
+  if (!body) return;
+  var p = PD.post;
+  if (!p) {
+    if (PD.loading) {
+      body.innerHTML = '<div class="pd-msg">正在加载推文…</div>';
+    } else {
+      body.innerHTML = '<div class="pd-msg">' +
+        '<div>' + esc(PD.error || '该推文不存在或已被删除') + '</div>' +
+        '<div class="pd-retry" data-pd-retry="1">重试</div>' +
+        '</div>';
+    }
+    if (title) title.textContent = '推文详情';
+    return;
+  }
+  var acc = S.accounts[p.authorId] || {};
+  var name = acc.displayName || p.authorDisplayName || acc.handle || p.authorHandle || "Unknown";
+  if (title) title.textContent = name + ' · ' + relTime(p.createdAtMs);
+
+  var list = Array.isArray(PD.comments) ? PD.comments : [];
+  var html = pdPostHTML(p, list.length);
+  html += '<div class="pd-replies-head">' +
+    '<span>回复' + (list.length ? ' · ' + list.length : '') + '</span>' +
+    '<button class="pd-toggle" data-pd-toggle="1">' + (PD.expanded ? '收起' : '展开') + '</button>' +
+    '</div>';
+  if (PD.expanded) {
+    html += '<div class="pd-replies">';
+    if (PD.loading) {
+      html += '<div class="pd-empty">正在加载回复…</div>';
+    } else if (list.length) {
+      html += list.map(commentHTML).join('');
+    } else {
+      html += '<div class="pd-empty">还没有回复，来说点什么吧</div>';
+    }
+    if (PD.error) {
+      html += '<div class="pd-empty">' + esc(PD.error) + '</div>';
+    }
+    html += commentFormHTML(p.id);
+    html += '</div>';
+  }
+  body.innerHTML = html;
+  pdBindCarousel();
+}
+
+/* 轮播滑动时同步页码与圆点 */
+function pdBindCarousel() {
+  var wrap = document.querySelector("#pdBody .pd-media");
+  if (!wrap) return;
+  var dots = document.querySelector("#pdBody .pd-dots");
+  var slides = wrap.querySelectorAll(".pd-slide");
+  if (!slides || slides.length < 2) return;
+  var update = function () {
+    var i = Math.round(wrap.scrollLeft / Math.max(1, wrap.clientWidth));
+    if (i < 0) i = 0;
+    if (i > slides.length - 1) i = slides.length - 1;
+    var dotsEls = dots ? dots.querySelectorAll("i") : [];
+    for (var k = 0; k < dotsEls.length; k++) {
+      dotsEls[k].className = (k === i) ? "on" : "";
+    }
+    var counters = document.querySelectorAll("#pdBody .pd-counter");
+    for (var c = 0; c < counters.length; c++) {
+      counters[c].textContent = (i + 1) + "/" + slides.length;
+    }
+  };
+  wrap.addEventListener("scroll", update);
+  setTimeout(update, 60);
+}
+
+/* 打开二级详情页 */
+function openPostDetail(postId) {
+  var pd = document.getElementById("postDetail");
+  if (!pd) { showToast('详情页不可用'); return; }
+  PD.postId = String(postId || '');
+  PD.post = pdFindPost(PD.postId);
+  PD.comments = PD.post && Array.isArray(PD.post.comments) ? PD.post.comments.slice() : [];
+  PD.loading = true;
+  PD.error = '';
+  PD.expanded = true;
+  PD.tried = false;
+  pd.classList.add('show');
+  pd.setAttribute('aria-hidden', 'false');
+  var sc = document.getElementById('pdScroll');
+  if (sc) sc.scrollTop = 0;
+  pdRender();
+
+  /* 拉最新评论（失败时保留本地内容并提示） */
+  XBridge.callTool("x_social:listComments", { postId: PD.postId }).then(function (r) {
+    if (PD.postId !== String(postId)) return;   // 已经打开别的帖子了
+    PD.loading = false;
+    if (!r || r.success === false) {
+      PD.error = (r && r.message) || '回复加载失败，可点击重试';
+    } else {
+      var d = (r && (r.data || r)) || {};
+      PD.comments = Array.isArray(d.comments) ? d.comments : [];
+      if (PD.post) { PD.post.comments = PD.comments; PD.post.commentCount = PD.comments.length; }
+    }
+    pdRender();
+  }).catch(function () {
+    if (PD.postId !== String(postId)) return;
+    PD.loading = false;
+    PD.error = '网络异常，暂时无法加载回复';
+    pdRender();
+  });
+
+  /* 本地没有这条帖子 → 再从服务端全量列表里找一次 */
+  if (!PD.post) {
+    XBridge.callTool("x_social:status", { limit: 200 }).then(function (r) {
+      if (PD.postId !== String(postId)) return;
+      var d = (r && (r.data || r)) || {};
+      var posts = Array.isArray(d.posts) ? d.posts : [];
+      for (var i = 0; i < posts.length; i++) {
+        if (posts[i] && String(posts[i].id) === String(postId)) {
+          PD.post = posts[i];
+          if (Array.isArray(posts[i].comments) && posts[i].comments.length) {
+            PD.comments = posts[i].comments;
+          }
+          PD.loading = false;
+          pdRender();
+          return;
+        }
+      }
+      PD.loading = false;
+      PD.error = '该推文不存在或已被删除';
+      pdRender();
+    }).catch(function () {
+      if (PD.postId !== String(postId)) return;
+      PD.loading = false;
+      PD.error = '网络异常，推文加载失败';
+      pdRender();
+    });
+  }
+}
+
+/* 关闭二级详情页 */
+function closePostDetail() {
+  var pd = document.getElementById("postDetail");
+  if (pd) {
+    pd.classList.remove('show');
+    pd.setAttribute('aria-hidden', 'true');
+  }
+  PD.postId = null;
+  PD.post = null;
+  PD.comments = [];
+  PD.error = '';
+}
+
+/* ---------------- 事件绑定 ---------------- */
+document.addEventListener("click", function (e) {
+  var t = e.target;
+
+  // ===== 评论：发送按钮 =====
+  var cSend = t.closest && t.closest("[data-comment-send]");
+  if (cSend) {
+    e.stopPropagation();
+    var cPostId = cSend.getAttribute("data-comment-send");
+    /* 【修复·详情页评论框串台】首页卡片和详情页里可能有同 id 的评论框，
+       document.querySelector 只会取到第一个（在首页卡片里），
+       于是用户在详情页输入的内容根本没进详情页的输入框。
+       这里先在「自己所在的评论容器」里找，找不到再退回全局查询。 */
+    var cScope = cSend.closest(".comments-box, .pd-replies");
+    var cInput = (cScope && cScope.querySelector('[data-comment-input="' + cPostId + '"]')) ||
+      document.querySelector('[data-comment-input="' + cPostId + '"]');
+    var cText = cInput ? String(cInput.value || "").trim() : "";
+    if (!cText) { showToast("评论不能为空"); return; }
+    cSend.disabled = true;
+    cSend.textContent = "发送中";
+    XBridge.callTool("x_social:comment", { postId: cPostId, text: cText, author: S.me }).then(function (r) {
+      if (!r || r.success === false) {
+        showToast((r && r.message) || "评论失败");
+        cSend.disabled = false;
+        cSend.textContent = "发送";
+        return;
+      }
+      showToast("评论已发布");
+      // 局部更新该帖的评论
+      var d = (r.data || r) || {};
+      var list = Array.isArray(d.comments) ? d.comments : null;
+      if (!list && d.post && Array.isArray(d.post.comments)) list = d.post.comments;
+      for (var i = 0; i < S.posts.length; i++) {
+        if (S.posts[i].id === cPostId) {
+          if (list) S.posts[i].comments = list;
+          S.posts[i].commentCount = Number(d.commentCount) || (S.posts[i].comments || []).length;
+          break;
+        }
+      }
+      /* 【修复·详情页发评论会被踢回主页】
+         旧实现无条件 renderHome()，而 renderHome() 会重建整个 elScroll，
+         于是**详情页被整个抹掉**（用户看到的是"评论发出去了，但页面跳回主页"，
+         输入框里的字也一并丢失，体感就是"评论发不了"）。
+         现在：详情页开着 → 只刷新详情页；只有真的在主页视图才 renderHome()。 */
+      var inDetail = (typeof PD !== "undefined" && PD.postId &&
+        String(PD.postId) === String(cPostId));
+      if (inDetail) {
+        PD.comments = list || (PD.post && Array.isArray(PD.post.comments) ? PD.post.comments : []) || [];
+        if (PD.post) { PD.post.comments = PD.comments; PD.post.commentCount = PD.comments.length; }
+        PD.loading = false;
+        PD.error = "";
+        pdRender();
+      } else if (S.view === "list" && S.tab === "home") {
+        renderHome();
+      }
+      /* 清空输入框 + 恢复按钮（两种视图都要处理） */
+      try {
+        if (cInput) { cInput.value = ""; cInput.style.height = "auto"; }
+        cSend.disabled = true;
+        cSend.textContent = "发送";
+      } catch (e) { }
+      /* 【新增·社交事件桥接】评论成功后把事件送进绑定对话。
+         ① 用户评论 → 通知 AI，AI 的回应回填成新评论
+         ② AI 自己发的评论（fromBridge 的除外）→ 也通知
+         回填返回的评论带 fromBridge 标记，前端不重复桥接，防无限循环。 */
+      var cd = (r && (r.data || r)) || {};
+      var theComment = cd.comment || null;
+      var thePost = cd.post || null;
+      /* 【需求·修正】只有**用户的评论**才通知 AI；
+         AI 自己发的评论不再通知（否则回环 + 噪音）。
+         桥接回填的评论带 fromBridge，同样不通知。 */
+      if (theComment && thePost && !theComment.fromBridge && theComment.authorId !== "ai") {
+        bridgeSocialEvent("user_comment", thePost, theComment);
+      }
+    });
+    return;
+  }
+
+  // ===== 评论：输入框（启用/禁用发送按钮 + 自动高度） =====
+  var cIn = t.closest && t.closest("[data-comment-input]");
+  if (cIn && cIn.tagName === "TEXTAREA") {
+    var pid2 = cIn.getAttribute("data-comment-input");
+    var send2 = document.querySelector('[data-comment-send="' + pid2 + '"]');
+    if (send2) send2.disabled = !String(cIn.value || "").trim();
+    cIn.style.height = "auto";
+    cIn.style.height = Math.min(cIn.scrollHeight, 100) + "px";
+    return;
+  }
+
+  // 右下角悬浮发帖按钮
+  if (t.closest && t.closest("#fabPost")) {
+    openComposer();
+    return;
+  }
+
+  // 返回
+  if (t.closest && t.closest("#backBtn")) {
+    if (typeof closePostDetail === "function") closePostDetail();
+    S.view = "list";
+    S.chatPeer = null;
+    var bb = document.getElementById("backBtn");
+    if (bb) bb.style.display = "none";
+    elScroll.classList.remove("chat-mode");
+    // 顶栏头像恢复成「我自己」（聊天页显示的是对方）
+    updateMeAvatar();
+    // 原版 X：从会话详情返回时回到原来的列表（私信 → Chat 列表）
+    if (S.tab === "messages") {
+      switchTab("messages");
+    } else {
+      switchTab("home");
+    }
+    return;
+  }
+
+
+  // 左上角头像 → 我的主页
+  if (t.closest && t.closest("[data-open-profile]")) {
+    renderProfile(S.me);
+    return;
+  }
+
+  // 点击弹层背景关闭
+  if (t.id === "modalMask") {
+    if (t.classList.contains("compose")) closeComposer();
+    else closeSheet();
+    return;
+  }
+
+  // 主题
+  if (t.closest && t.closest("#themeBtn")) {
+    var root = document.documentElement;
+    var cur = document.body.getAttribute("data-theme") || "light";
+    var next = cur === "dark" ? "light" : "dark";
+    document.body.setAttribute("data-theme", next);
+    try { localStorage.setItem("x_theme", next); } catch (er) { }
+    return;
+  }
+
+  // 底部 Tab
+  var tab = t.closest && t.closest(".tab");
+  if (tab) {
+    var name = tab.getAttribute("data-tab");
+    if (name) switchTab(name);
+    return;
+  }
+
+  // 媒体选择
+  var pk = t.closest && t.closest("[data-pick]");
+  if (pk) {
+    handlePick(pk.getAttribute("data-pick"));
+    return;
+  }
+
+  // 删除预览媒体
+  var rm = t.closest && t.closest("[data-rm]");
+  if (rm) {
+    var idx = Number(rm.getAttribute("data-rm"));
+    S.pendingMedia.splice(idx, 1);
+    renderMediaPreview();
+    var sb = document.getElementById("composePost") || document.getElementById("sendBtn");
+    var ci = document.getElementById("composerInput");
+    if (sb) sb.disabled = !(ci && ci.value.trim()) && !S.pendingMedia.length;
+    return;
+  }
+
+  // 点头像/名字 → 个人主页
+  var ga = t.closest && t.closest("[data-goto-author]");
+  if (ga) {
+    e.stopPropagation();
+    /* 从详情页点头像进主页 → 先关掉详情页，否则会被盖住 */
+    if (typeof closePostDetail === "function") closePostDetail();
+    renderProfile(ga.getAttribute("data-goto-author"));
+    return;
+  }
+
+  // 帖子动作
+  var act = t.closest && t.closest("[data-act]");
+  if (act) {
+    e.stopPropagation();
+    var action = act.getAttribute("data-act");
+    var pid = act.getAttribute("data-id");
+    /* 【性能·局部更新】点赞/转发/收藏/删除：
+       旧实现 = 调工具 → 全量拉 status → renderHome() 重建整个首页
+       → 十几张图片全部重新解码，体感就是「按一下卡一下」。
+       新实现 = 调工具 → 只用返回的那条帖子数据局部替换 .post-actions。
+       若局部替换失败（帖子不在当前页）才回退到 refreshFeed()。 */
+    if (action === "like" || action === "repost" || action === "bookmark") {
+      var tool = action === "like" ? "x_social:like"
+        : (action === "repost" ? "x_social:retweet" : "x_social:bookmark");
+      /* 乐观更新：先切换图标给即时反馈，失败再回滚 */
+      var optimistic = postById(pid);
+      if (optimistic) {
+        var arr = optimistic[action === "like" ? "likedBy"
+          : (action === "repost" ? "retweetedBy" : "bookmarkedBy")] || [];
+        var had = arr.indexOf(S.me) >= 0;
+        var copy = arr.slice();
+        if (had) copy.splice(copy.indexOf(S.me), 1); else copy.push(S.me);
+        optimistic[action === "like" ? "likedBy"
+          : (action === "repost" ? "retweetedBy" : "bookmarkedBy")] = copy;
+        optimistic[action === "like" ? "likeCount"
+          : (action === "repost" ? "retweetCount" : "bookmarkCount")] =
+          Math.max(0, Number(optimistic[action === "like" ? "likeCount"
+            : (action === "repost" ? "retweetCount" : "bookmarkCount")] || 0) + (had ? -1 : 1));
+        patchPostActions(optimistic);
+      }
+      XBridge.callTool(tool, { postId: pid, actor: S.me }).then(function (r) {
+        if (!r || r.success === false) {
+          showToast((r && r.message) || "操作失败");
+          refreshFeed();
+          return;
+        }
+        var d = (r && (r.data || r)) || {};
+        var np = d.post || null;
+        if (np && np.id) {
+          /* 用服务端返回的权威数据覆盖本地，再局部刷新 */
+          var local = postById(np.id);
+          if (local) {
+            local.likedBy = np.likedBy || local.likedBy || [];
+            local.retweetedBy = np.retweetedBy || local.retweetedBy || [];
+            local.bookmarkedBy = np.bookmarkedBy || local.bookmarkedBy || [];
+            local.likeCount = np.likeCount;
+            local.retweetCount = np.retweetCount;
+            local.bookmarkCount = np.bookmarkCount;
+            patchPostActions(local);
+          } else {
+            refreshFeed();
+          }
+        } else {
+          refreshFeed();
+        }
+        if (action === "bookmark") showToast("收藏状态已切换");
+      });
+      return;
+    }
+    if (action === "delete") {
+      askConfirm("删除这条帖子？", function () {
+        XBridge.callTool("x_social:deletePost", { postId: pid }).then(function () {
+          showToast("已删除");
+          refreshFeed();
+        });
+      });
+    } else if (action === "comment") {
+      /* 【需求·二级界面】点评论不再在原卡片里内联展开，
+         直接打开全屏的推文详情页（回复时间线在详情页底部）。 */
+      openPostDetail(pid);
+    } else if (action === "reply") {
+      showToast("请点击评论按钮展开评论区");
+    }
+    return;
+  }
+  /* ===== 帖子二级详情页：点击帖子正文/时间打开详情 =====
+     注意：图片/视频（data-img / data-video）与头像/昵称要先被上面的分支拦掉，
+     否则点图片会误跳详情、点昵称进不了主页。 */
+  var pdImg = t.closest && t.closest("[data-img]");
+  var pdVid = t.closest && t.closest("[data-video]");
+  if (!pdImg && !pdVid) {
+    var pdPost = t.closest && t.closest("[data-post]");
+    if (pdPost) {
+      e.stopPropagation();
+      openPostDetail(pdPost.getAttribute("data-post"));
+      return;
+    }
+  }
+  /* 详情页内的互动按钮：点赞 / 转发 / 收藏 */
+  var pdAct = t.closest && t.closest("[data-pd-act]");
+  if (pdAct) {
+    e.stopPropagation();
+    var paId = pdAct.getAttribute("data-id");
+    var paKind = pdAct.getAttribute("data-pd-act");
+    var paTool = paKind === "like" ? "x_social:like" : (paKind === "repost" ? "x_social:retweet" : "x_social:bookmark");
+    XBridge.callTool(paTool, { postId: paId, actor: S.me }).then(function (r) {
+      if (!r || r.success === false) {
+        showToast((r && r.message) || "操作失败");
+        return;
+      }
+      /* 【性能·局部更新】用服务端返回的最新帖子数据刷新详情页，
+         不再 refreshFeed() 全量重绘首页（那会把十几张图全部重新解码）。 */
+      var d = (r && (r.data || r)) || {};
+      var np = d.post || d;
+      if (np && np.id && PD.post && String(np.id) === String(PD.postId)) {
+        PD.post = np;
+        pdRender();
+      }
+      /* 首页那条帖子也同步一下操作栏状态（只替换那一个 DOM 节点） */
+      var local = postById(paId);
+      if (local && np && np.id) {
+        local.likedBy = np.likedBy || local.likedBy || [];
+        local.retweetedBy = np.retweetedBy || local.retweetedBy || [];
+        local.bookmarkedBy = np.bookmarkedBy || local.bookmarkedBy || [];
+        local.likeCount = np.likeCount;
+        local.retweetCount = np.retweetCount;
+        local.bookmarkCount = np.bookmarkCount;
+        patchPostActions(local);
+      }
+    });
+    return;
+  }
+  /* 详情页内部：返回 / 展开收起 / 重试 */
+  var pdBack = t.closest && t.closest("#pdBack");
+  if (pdBack) {
+    closePostDetail();
+    return;
+  }
+  var pdTgl = t.closest && t.closest("[data-pd-toggle]");
+  if (pdTgl) {
+    PD.expanded = !PD.expanded;
+    pdRender();
+    return;
+  }
+  var pdRetry = t.closest && t.closest("[data-pd-retry]");
+  if (pdRetry) {
+    var again = PD.postId;
+    if (again) openPostDetail(again);
+    return;
+  }
+
+  // 私信会话
+  var chat = t.closest && t.closest("[data-chat]");
+  if (chat) {
+    openChat(chat.getAttribute("data-chat"));
+    return;
+  }
+  // 新私信
+  if (t.closest && t.closest("#dmNewBtn")) {
+    var di = document.getElementById("dmNewInput");
+    var who = di ? String(di.value || "").trim().toLowerCase() : "";
+    if (!who) { showToast("请输入 user 或 ai"); return; }
+    var peer = who.indexOf("ai") >= 0 ? "ai" : "user";
+    if (peer === S.me) { showToast("不能给自己发私信"); return; }
+    openChat(peer);
+    return;
+  }
+
+  // 顶栏「All ⌄」筛选按钮
+  if (t.closest && t.closest("#dmFilterBtn")) {
+    toggleDmFilter();
+    return;
+  }
+
+
+  // 【性能·长文本折叠】点「…展开」显示全文
+  var exp = t.closest && t.closest("[data-expand]");
+  if (exp) {
+    var span = exp.closest(".bubble-text");
+    if (span) {
+      var full = span.getAttribute("data-full") || "";
+      if (full) {
+        // 直接换成全文（data-full 里是已转义的原文，插入前不再转义）
+        span.innerHTML = full;
+        span.removeAttribute("data-full");
+        span.removeAttribute("data-collapsed");
+      }
+    }
+    return;
+  }
+
+  // 图片/视频放大（进入查看器，可左右滑动浏览该帖的全部图片）
+  var im = t.closest && t.closest("[data-img]");
+  if (im) {
+    var mp = im.getAttribute("data-mp");
+    var mi = Number(im.getAttribute("data-mi") || 0);
+    var list = mp ? mediaListForPost(mp) : [];
+    if (list.length) {
+      openMediaViewer(list, mi);
+    } else {
+      openLightbox(im.getAttribute("data-img"), false);
+    }
+    return;
+  }
+  var vd = t.closest && t.closest("[data-video]");
+  if (vd) {
+    var vp = vd.getAttribute("data-mp");
+    var vi = Number(vd.getAttribute("data-mi") || 0);
+    var vlist = vp ? mediaListForPost(vp) : [];
+    if (vlist.length) {
+      openMediaViewer(vlist, vi);
+    } else {
+      openLightbox(vd.getAttribute("data-video"), true);
+    }
+    return;
+  }
+
+  // 关闭灯箱（点关闭按钮 / 点空白）
+  if (t.closest && t.closest(".lb-close")) {
+    closeLightbox();
+    return;
+  }
+  if (t.id === "lightbox") {
+    closeLightbox();
+    return;
+  }
+  // 点导航箭头：只切换，不关闭
+  var lbn = t.closest && t.closest(".lb-nav");
+  if (lbn) return;
+  // 点查看器空白处：关闭
+  if (t.id === "lb-stage" || (t.classList && t.classList.contains("lb-stage"))) {
+    closeLightbox();
+    return;
+  }
+});
+
+function switchTab(name) {
+  /* 切换 Tab 时若详情页开着，先关闭 */
+  if (typeof closePostDetail === "function") closePostDetail();
+  S.tab = name;
+  S.view = "list";
+  elScroll.classList.remove("chat-mode");
+  /* 【性能】离开聊天界面 → 恢复首页轮询
+     （进入聊天时 openChat 会停掉它，避免和聊天加载抢 IO） */
+  startFeedPoller();
+  var bb = document.getElementById("backBtn");
+  if (bb) bb.style.display = "none";
+  // 「All ⌄」筛选按钮只在私信页出现
+  setDmFilterVisible(name === "messages");
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.classList.toggle("active", b.getAttribute("data-tab") === name);
+  });
+  if (name === "home") {
+    renderHome();
+    refreshFeed();
+  } else if (name === "search") {
+    renderSearch();
+  } else if (name === "notifications") {
+    renderNotifications();
+    // 进通知页就算已读：markNotificationsRead 内部会先刷新列表再标记，
+    // 角标小蓝点随之清掉（之前后端没有写 read 的路径，永远消不掉）
+    markNotificationsRead();
+  } else if (name === "messages") {
+    renderMessages();
+    refreshThreads();
+    loadChatOptions();
+  }
+}
+
+/* ---------------- 启动 ---------------- */
+(function boot() {
+  try {
+    var saved = localStorage.getItem("x_theme");
+    if (saved) document.body.setAttribute("data-theme", saved);
+  } catch (e) { }
+  renderHome();
+  // 桥接通常几百毫秒内就绪：先快轮询，之后放宽，避免一直 250ms 空转
+  var tries = 0;
+  var timer = null;
+  function tick() {
+    tries++;
+    if (XBridge.ready()) {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      XBridge.log("bridge ready");
+      // 三个请求并发发出，且首屏只需要 status
+      refreshFeed();
+      setTimeout(refreshNotifications, 60);
+      setTimeout(refreshThreads, 120);
+      /* 【修复·社交事件桥接收不到】boot 阶段必须加载绑定对话。
+         原来只在切到「消息」标签时才调 loadChatOptions()，
+         于是 S.chatLinks 一直是空的 → bridgeSocialEvent 里
+         `var chatId = String(links["ai"] || "")` 拿到空串 →
+         直接 return「未绑定对话」→ 事件被静默丢弃 → 用户感觉「AI 收不到」。
+         这里在启动时就拉一次绑定，之后发帖/评论才有目标对话。 */
+      loadChatOptions();
+      // 预热两个账号的主页缓存，打开个人主页时先秒出缓存再静默刷新
+      setTimeout(function () { prefetchProfile("user"); prefetchProfile("ai"); }, 200);
+      // 【修复】开启定时同步：AI/工具侧发帖后前端自动出现，不用手动刷新
+      startFeedPoller();
+      // 【新增】启动社交事件队列泵：AI 用工具发的帖子/评论由它投递进绑定对话
+      startSocialQueuePump();
+      return;
+    }
+    if (tries > 60) {
+      showToast("桥接未就绪，界面可能无法操作");
+      return;
+    }
+    timer = setTimeout(tick, tries < 12 ? 40 : (tries < 30 ? 120 : 300));
+  }
+  timer = setTimeout(tick, 0);
+})();
+</script>
+</body>
+</html>
