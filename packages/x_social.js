@@ -944,6 +944,17 @@ var XSocialTools = (function () {
     if (v.indexOf("ai_") === 0 || v.indexOf("ai-") === 0) return "ai";
     return "user";
   }
+  /* 【修复·账号参数不统一】社交动作工具（post/comment 用 author，
+     like/retweet/bookmark 用 actor）参数名不一致，导致调用方按另一种
+     习惯传参时被静默忽略、落到默认 user。
+     统一收口：author 与 actor 都接受，author 优先。 */
+  function pickActor(params) {
+    const p = params || {};
+    const raw = (p.author !== undefined && p.author !== null && String(p.author).trim() !== "")
+      ? p.author
+      : p.actor;
+    return normalizeAccountId(raw);
+  }
   function accountOf(state, id) {
     return state.accounts[id] || defaultAccounts()[id];
   }
@@ -1233,7 +1244,7 @@ async function copyLocalToMedia(src, kind) {
   function post(params) {
     return wrap(async () => {
       const state = await loadState();
-      const authorId = normalizeAccountId(params.author);
+      const authorId = pickActor(params);
       const text = String(params.text || "").trim();
       const attachments = await collectAttachments(params);
       if (!text && attachments.length === 0) {
@@ -1262,7 +1273,7 @@ async function copyLocalToMedia(src, kind) {
   function status(params) {
     return wrap(async () => {
       const state = await loadState();
-      const authorFilter = params.author ? normalizeAccountId(params.author) : null;
+      const authorFilter = params.author ? pickActor(params) : null;
 const includeRetweets = params.includeRetweets !== false;
       const limit = Math.max(1, Math.min(100, Number(params.limit || 50)));
       /* 【性能】light=true 时不返回评论正文（只要条数）。
@@ -1281,7 +1292,7 @@ const includeRetweets = params.includeRetweets !== false;
     return wrap(async () => {
       const state = await loadState();
       const postId = String(params.postId || "").trim();
-      const actorId = normalizeAccountId(params.actor);
+      const actorId = pickActor(params);
       if (!postId) return fail("\u7F3A\u5C11 postId");
       const p = findPost(state, postId);
       if (!p) return fail("\u5E16\u5B50\u4E0D\u5B58\u5728: " + postId);
@@ -1316,7 +1327,7 @@ const includeRetweets = params.includeRetweets !== false;
     return wrap(async () => {
       const state = await loadState();
       const postId = String(params.postId || "").trim();
-      const actorId = normalizeAccountId(params.actor);
+      const actorId = pickActor(params);
       if (!postId) return fail("\u7F3A\u5C11 postId");
       const origin = findPost(state, postId);
       if (!origin) return fail("\u5E16\u5B50\u4E0D\u5B58\u5728: " + postId);
@@ -1362,7 +1373,7 @@ const includeRetweets = params.includeRetweets !== false;
     return wrap(async () => {
       const state = await loadState();
       const postId = String(params.postId || "").trim();
-      const authorId = normalizeAccountId(params.author);
+      const authorId = pickActor(params);
       const text = String(params.text || "").trim();
       if (!postId) return fail("\u7F3A\u5C11 postId");
       if (!text) return fail("\u8BC4\u8BBA\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A");
@@ -1929,7 +1940,7 @@ const includeRetweets = params.includeRetweets !== false;
   function dmList(params) {
     return wrap(async () => {
       const state = await loadState();
-      const actor = normalizeAccountId(params.actor);
+      const actor = pickActor(params);
       const dms = ensureDm(state);
       const out = [];
       for (const key of Object.keys(dms)) {
@@ -1961,7 +1972,7 @@ const includeRetweets = params.includeRetweets !== false;
   function dmMessages(params) {
     return wrap(async () => {
       const state = await loadState();
-      const actor = normalizeAccountId(params.actor);
+      const actor = pickActor(params);
       const peer = normalizeAccountId(params.peer);
       const limit = Math.max(1, Math.min(500, Number(params.limit || 200)));
       const dms = ensureDm(state);
@@ -1999,7 +2010,7 @@ const includeRetweets = params.includeRetweets !== false;
   function dmSend(params) {
     return wrap(async () => {
       const state = await loadState();
-      const actor = normalizeAccountId(params.actor);
+      const actor = pickActor(params);
       const peer = normalizeAccountId(params.peer);
       if (actor === peer) return fail("\u4e0d\u80fd\u7ed9\u81ea\u5df1\u53d1\u79c1\u4fe1");
       const text = String(params.text || "").trim();
@@ -2037,7 +2048,7 @@ const includeRetweets = params.includeRetweets !== false;
   function dmRead(params) {
     return wrap(async () => {
       const state = await loadState();
-      const actor = normalizeAccountId(params.actor);
+      const actor = pickActor(params);
       const peer = normalizeAccountId(params.peer);
       const dms = ensureDm(state);
       const key = pairKey(actor, peer);
@@ -2052,7 +2063,7 @@ const includeRetweets = params.includeRetweets !== false;
   function notifications(params) {
     return wrap(async () => {
       const state = await loadState();
-      const actor = normalizeAccountId(params.actor);
+      const actor = pickActor(params);
       const limit = Math.max(1, Math.min(100, Number(params.limit || 50)));
       const all = ensureNotifs(state).filter((n) => n.target === actor);
       return ok({ notifications: all.slice(0, limit), total: all.length }, "\u67e5\u8be2\u5b8c\u6210");
@@ -2063,7 +2074,7 @@ const includeRetweets = params.includeRetweets !== false;
   function readNotifications(params) {
     return wrap(async () => {
       const state = await loadState();
-      const actor = normalizeAccountId(params.actor);
+      const actor = pickActor(params);
       const list = ensureNotifs(state);
       let n = 0;
       for (const item of list) {
@@ -2292,7 +2303,7 @@ function pushAiReply(state, peer, text, actor, ts) {
       const chatId = String(params.chatId || "").trim();
       const before = String(params.before || "");
       const peer = normalizeAccountId(params.peer || "ai");
-      const actor = normalizeAccountId(params.actor || "user");
+      const actor = pickActor(params);
       if (!chatId) return fail("\u672a\u7ed1\u5b9a\u5bf9\u8bdd");
       const got = await fetchLastAssistantReply(chatId);
       const reply = got && got.text ? got.text : "";
@@ -2380,7 +2391,7 @@ function pushAiReply(state, peer, text, actor, ts) {
       const text = String(params.text || "").trim();
       if (!text) return fail("回复内容为空");
       const peer = normalizeAccountId(params.peer || "ai");
-      const actor = normalizeAccountId(params.actor || "user");
+      const actor = pickActor(params);
       const dedupe = String(params.dedupe || "");
       /* 【修复·对话记录混乱】对话里该条回复的真实时间戳。
          前端从 chatHistory 拿到 timestamp 后传上来，
@@ -2444,7 +2455,7 @@ function pushAiReply(state, peer, text, actor, ts) {
     return wrap(async () => {
       const state = await loadState();
       const peer = normalizeAccountId(params.peer || "ai");
-      const actor = normalizeAccountId(params.actor || "user");
+      const actor = pickActor(params);
       const key = peer + "__" + actor;
       const cursor = Number((state.aiReplyCursor && state.aiReplyCursor[key]) || 0);
       let latest = 0;
@@ -2482,7 +2493,7 @@ function fixAiTimestamps(params) {
     return wrap(async () => {
       const state = await loadState();
       const peer = normalizeAccountId(params.peer || "ai");
-      const actor = normalizeAccountId(params.actor || "user");
+      const actor = pickActor(params);
       const links = ensureChatLinks(state);
       const chatId = String(params.chatId || links[peer] || "").trim();
       if (!chatId) return fail("未绑定对话");
@@ -2584,7 +2595,7 @@ function fixAiTimestamps(params) {
   function chatBundle(params) {
     return wrap(async () => {
       const state = await loadState();
-      const actor = normalizeAccountId(params.actor || "user");
+      const actor = pickActor(params);
       const peer = normalizeAccountId(params.peer || "ai");
       const limit = Math.max(1, Math.min(500, Number(params.limit || 200)));
       const markRead = params.markRead === undefined ? true : !!params.markRead;
